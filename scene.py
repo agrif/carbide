@@ -7,6 +7,7 @@ import struct
 from mathutils import Vector, Matrix
 
 from .render import W_PT_renderer, W_PT_integrator
+from .material import W_PT_material
 from .camera import W_PT_camera
 from .world import W_PT_world
 
@@ -164,12 +165,11 @@ class TungstenScene:
         if m.name in self.mats:
             return self.mats[m.name]
 
-        # FIXME material
-        #obj, mat = PANEL_CLASSES['material'].to_scene_data(self, m)
-        #self.scene['bsdfs'].append(mat)
-        #self.mats[m.name] = obj
-        return {'bsdf': self.default_mat}
-        #return obj
+        obj, mat = W_PT_material.to_scene_data(self, m)
+        if mat:
+            self.scene['bsdfs'].append(mat)
+        self.mats[m.name] = obj
+        return obj
 
     def add_mesh(self, m, name=None):
         if name is None:

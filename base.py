@@ -3,30 +3,32 @@ import bpy_types
 
 REGISTRARS = []
 
-def registrar(register, unregister):
+def registrar(register, unregister, name=None):
     global REGISTRARS
-    REGISTRARS.append((register, unregister))
+    # FIXME why are things registered twice?
+    if name is None or not [True for _, _, n in REGISTRARS if n == name]:
+        REGISTRARS.append((register, unregister, name))
 
 def register():
-    for r, _ in REGISTRARS:
+    for r, _, n in REGISTRARS:
+        #print('registering', n)
         r()
 
 def unregister():
-    for _, u in REGISTRARS:
+    for _, u, n in REGISTRARS:
+        #print('unregistering', n)
         u()
 
 def register_class(cls):
-    registrar(lambda: bpy.utils.register_class(cls), lambda: bpy.utils.unregister_class(cls))
+    registrar(lambda: bpy.utils.register_class(cls), lambda: bpy.utils.unregister_class(cls), cls.__name__)
     return cls
 
 def compatify_class(cls):
     def reg():
-        if not 'COMPAT_ENGINES' in cls.COMPAT_ENGINES:
-            cls.COMPAT_ENGINES = set()
         cls.COMPAT_ENGINES.add('TUNGSTEN')
     def unreg():
         cls.COMPAT_ENGINES.remove('TUNGSTEN')
-    registrar(reg, unreg)
+    registrar(reg, unreg, cls.__name__)
     return cls
 
 def compatify_all(mod, start):

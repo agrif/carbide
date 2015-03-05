@@ -1,266 +1,238 @@
 import bpy
+import nodeitems_utils
 from bl_ui import properties_material
-from .complex_ior_data import data as ior_data
-from .texture import ColorTextureProperty, FloatTextureProperty, TextureProperty
-from . import props
+from . import base
 
-class MaterialProperty(props.FakeIDProperty):
-    ID_NAME = 'material'
-    HUMAN_NAME = 'Material'
-    SLOTS_NAME = 'material_slots'
-    
-    def to_scene_data(self, scene, mat):
-        submat = self.normalize(mat)
-        if submat:
-            return W_PT_context_material.to_scene_data(scene, submat)
-        return None
-
-class MaterialExtra(properties_material.MaterialButtonsPanel, bpy.types.Panel):
-    bl_label = ""
-    w_type = ""
+@base.register_class
+class W_OT_use_material_nodes(bpy.types.Operator):
+    """Enable nodes on a material"""
+    bl_label = "Use Nodes"
+    bl_idname = 'tungsten.use_material_nodes'
 
     @classmethod
     def poll(cls, context):
-        if W_PT_context_material.poll(context):
-            mat = properties_material.active_node_mat(context.material)
-            if mat.w_type == cls.w_type:
-                return True
-        return False
+        return getattr(context, 'material', False)
 
-    def draw(self, context):
-        mat = properties_material.active_node_mat(context.material)
-        self.draw_extra(self.layout, mat)
-
-    @classmethod
-    def to_scene_data(self, scene, mat):
-        return {}
-
-    def draw_extra(self, lay, mat):
-        pass
-
-def lookup_ior(name):
-    _, eta, k = [i for i in ior_data if i[0] == name][0]
-    return (eta, k)
-
-def update_conductor_material(self, context):
-    if self.w_conductor_material != 'CUSTOM':
-        eta, k = lookup_ior(self.w_conductor_material)
-        self.w_conductor_eta = eta
-        self.w_conductor_k = k
-
-class W_PT_conductor(MaterialExtra):
-    bl_label = "Conductor"
-    w_type = "conductor"
-
-    REGISTER_PROPERTIES = {
-        bpy.types.Material: {
-            'w_conductor_material': bpy.props.EnumProperty(
-                name='Material',
-                description='Conductor Material',
-                items=[
-                    ('CUSTOM', 'Custom', ''),
-                ] + [(n, n, '') for n, _, _ in ior_data],
-                default='W',
-                update=update_conductor_material,
-            ),
-            'w_conductor_eta': bpy.props.FloatVectorProperty(
-                name='Eta',
-                description='Conductor Eta',
-                min=0,
-                default=lookup_ior('W')[0],
-            ),
-
-            'w_conductor_k': bpy.props.FloatVectorProperty(
-                name='K',
-                description='Conductor K',
-                min=0,
-                default=lookup_ior('W')[1],
-            ),
-        },
-    }
-
-    @classmethod
-    def to_scene_data(self, scene, mat):
-        return {
-            'eta': list(mat.w_conductor_eta),
-            'k': list(mat.w_conductor_k),
-        }
-
-    def draw_extra(self, lay, mat):
-        lay.prop(mat, 'w_conductor_material')
-
-        col = lay.column()
-        col.enabled = (mat.w_conductor_material == 'CUSTOM')
-        row = col.row()
-        row.prop(mat, 'w_conductor_eta')
-        row = col.row()
-        row.prop(mat, 'w_conductor_k')
-
-class W_PT_dielectric(MaterialExtra):
-    bl_label = "Dielectric"
-    w_type = "dielectric"
-
-    REGISTER_PROPERTIES = {
-        bpy.types.Material: {
-            'w_dielectric_ior': bpy.props.FloatProperty(
-                name='IOR',
-                description='Dielectric IOR',
-                min=0,
-                default=1.5,
-            ),
-
-            'w_dielectric_enable_refraction': bpy.props.BoolProperty(
-                name='Refraction',
-                description='Enable Refraction',
-                default=True,
-            ),
-        },
-    }
-
-    @classmethod
-    def to_scene_data(self, scene, mat):
-        return {
-            'ior': mat.w_dielectric_ior,
-            'enable_refraction': mat.w_dielectric_enable_refraction,
-        }
-
-    def draw_extra(self, lay, mat):
-        row = lay.row()
-        row.prop(mat, 'w_dielectric_enable_refraction')
-        row.prop(mat, 'w_dielectric_ior')
-
-def get_material_object(mat):
-    # FIXME
-    for o in bpy.data.objects:
-        for ms in o.material_slots:
-            if ms.material == mat:
-                return o
-    return None
-
-class W_PT_mixed(MaterialExtra):
-    bl_label = "Mixed"
-    w_type = "mixed"
-
-    REGISTER_PROPERTIES = {
-        bpy.types.Material: {
-            'w_mixed0': MaterialProperty(
-                name='First',
-                description='First',
-                get_obj=get_material_object,
-            ),
-
-            'w_mixed1': MaterialProperty(
-                name='Second',
-                description='Second',
-                get_obj=get_material_object,
-            ),
-
-            'w_mixed_ratio': FloatTextureProperty(
-                name='Ratio',
-                description='Ratio',
-                default=0.5,
-            ),
-        },
-    }
-
-    @classmethod
-    def to_scene_data(self, scene, mat):
-        d = {
-            'ratio': mat.w_mixed_ratio.to_scene_data(scene, mat),
-        }
+    def execute(self, context):
+        mat = context.material
+        w = mat.tungsten
         
-        m0 = mat.w_mixed0.to_scene_data(scene, mat)
-        m1 = mat.w_mixed1.to_scene_data(scene, mat)
-        if m0:
-            d['bsdf0'] = m0[1]
-        if m1:
-            d['bsdf1'] = m1[1]
+        if w.nodetree:
+            return {'FINISHED'}
+        
+        nt = bpy.data.node_groups.new(mat.name, type='TungstenShaderTree')
+        nt.use_fake_user = True
+        w.nodetree = nt.name
+        nt.nodes.new('TungstenOutputNode')
+        
+        return {'FINISHED'}
 
-        return d
+@base.register_class
+class TungstenShaderTree(bpy.types.NodeTree):
+    bl_idname = 'TungstenShaderTree'
+    bl_label = 'Tungsten Shader Tree'
+    bl_icon = 'TEXTURE_SHADED'
 
-    def draw_extra(self, lay, mat):
-        mat.w_mixed0.draw(lay, mat)
-        mat.w_mixed1.draw(lay, mat)
-        mat.w_mixed_ratio.draw(lay, mat)
+    node_categories = {}
 
-class W_PT_context_material(properties_material.MaterialButtonsPanel, bpy.types.Panel):
+    @classmethod
+    def register_node(cls, category):
+        def registrar(nodecls):
+            base.register_class(nodecls)
+            d = cls.node_categories.setdefault(category, [])
+            d.append(nodecls)
+            return nodecls
+        return registrar
+
+    @classmethod
+    def register(cls):
+        cats = []
+        for c, l in cls.node_categories.items():
+            cid = c.replace(' ', '').upper()
+            items = [nodeitems_utils.NodeItem(nc.__name__) for nc in l]
+            cats.append(TungstenNodeCategory(cid, c, items=items))
+
+        nodeitems_utils.register_node_categories('TUNGSTEN_SHADER', cats)
+
+    @classmethod
+    def unregister(cls):
+        nodeitems_utils.unregister_node_categories('TUNGSTEN_SHADER')
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.render.engine == 'TUNGSTEN'
+
+    @classmethod
+    def get_from_context(cls, context):
+        ob = context.active_object
+        if ob and ob.type not in {'LAMP', 'CAMERA'}:
+            ma = ob.active_material
+            if ma:
+                ntname = ma.tungsten.nodetree
+                if ntname:
+                    return bpy.data.node_groups[ma.tungsten.nodetree], ma, ma
+        return (None, None, None)
+
+    @property
+    def output(self):
+        for n in self.nodes:
+            if isinstance(n, TungstenOutputNode):
+                return n
+        return None
+
+class TungstenNodeCategory(nodeitems_utils.NodeCategory):
+    @classmethod
+    def poll(cls, context):
+        return context.space_data.tree_type == 'TungstenShaderTree'
+
+class TungstenShaderNode(bpy.types.Node):
+    @classmethod
+    def poll(cls, ntree):
+        return ntree.bl_idname == 'TungstenShaderTree'
+
+@base.register_class
+class TungstenShaderSocket(bpy.types.NodeSocket):
+    bl_idname = 'TungstenShaderSocket'
+    bl_label = 'Tungsten Shader Socket'
+
+    default_value = bpy.props.FloatVectorProperty(
+        name='Albedo',
+        description='Albedo',
+        subtype='COLOR',
+        min=0.0,
+        max=1.0,
+        default=(0.8, 0.8, 0.8),
+    )
+
+    def to_scene_data(self, scene):
+        if not self.is_linked:
+            return {
+                'type': 'lambert',
+                'albedo': list(self.default_value),
+            }
+        return self.links[0].from_node.to_scene_data(scene)
+    
+    def draw_value(self, context, layout, node):
+        layout.label(self.name)
+
+    def draw_color(self, context, node):
+        return (0.1, 1.0, 0.2, 0.75)
+
+    def draw(self, context, layout, node, text):
+        if self.is_output or self.is_linked:
+            layout.label(self.name)
+        else:
+            layout.prop(self, 'default_value', text=self.name)
+
+@base.register_class
+class TungstenTextureSocket(bpy.types.NodeSocket):
+    bl_idname = 'TungstenTextureSocket'
+    bl_label = 'Tungsten Texture Socket'
+
+    default_value = bpy.props.FloatVectorProperty(
+        name='Color',
+        description='Color',
+        subtype='COLOR',
+        min=0.0,
+        max=1.0,
+        default=(0.8, 0.8, 0.8),
+    )
+
+    def to_scene_data(self, scene):
+        if not self.is_linked:
+            return list(self.default_value)
+        return self.links[0].from_node.to_scene_data(scene)
+    
+    def draw_value(self, context, layout, node):
+        layout.label(self.name)
+
+    def draw_color(self, context, node):
+        return (1.0, 0.1, 0.2, 0.75)
+
+    def draw(self, context, layout, node, text):
+        if self.is_output or self.is_linked:
+            layout.label(self.name)
+        else:
+            layout.prop(self, 'default_value', text=self.name)
+
+@TungstenShaderTree.register_node('Output')
+class TungstenOutputNode(TungstenShaderNode):
+    bl_label = 'Output'
+    def init(self, context):
+        self.inputs.new('TungstenShaderSocket', 'Material')
+
+@base.register_root_panel
+class W_PT_material(properties_material.MaterialButtonsPanel, base.RootPanel):
     bl_label = ""
     bl_options = {'HIDE_HEADER'}
-
-    REGISTER_PROPERTIES = {
-        bpy.types.Material: {
-            'w_type': bpy.props.EnumProperty(
-                name='Material Type',
-                description='Material Type',
-                items=[
-                    ('forward', 'Forward', ''),
-                    ('lambert', 'Lambert', ''),
-                    ('mirror', 'Mirror', ''),
-                    ('null', 'Null', ''),
-                ] + [(c.w_type, c.bl_label, '') for c in MaterialExtra.__subclasses__()],
-                default='lambert',
-            ),
-
-            'w_albedo': ColorTextureProperty(
-                name='Albedo',
-                description='Albedo',
-                default=(0.8, 0.8, 0.8),
-            ),
-
-            'w_emission': ColorTextureProperty(
-                name='Emission',
-                description='Emission',
-                default=(0.0, 0.0, 0.0),
-            ),
-
-            'w_bump': TextureProperty(
-                name='Bump',
-                description='Bump',
-            ),
-
-            'w_bump_strength': bpy.props.FloatProperty(
-                name='Bump Strength',
-                description='Bump Strength',
-                min=0.0,
-                soft_max=10.0,
-                default=1.0,
-            ),
-        },
-    }
+    prop_class = bpy.types.Material
 
     @classmethod
-    def to_scene_data(self, scene, m):
-        mat = {
-            'type': m.w_type,
-            'name': m.name,
-            'albedo': m.w_albedo.to_scene_data(scene, m),
-        }
-        obj = {
-            'bsdf': m.name,
-        }
-
-        emission = m.w_emission.to_scene_data(scene, m)
-        if emission != [0.0, 0.0, 0.0]:
-            obj['emission'] = emission
-
-        t = m.w_bump.to_scene_data(scene, m)
-        if t:
-            obj['bump_strength'] = m.w_bump_strength
-            obj['bump'] = t
-
-        for c in MaterialExtra.__subclasses__():
-            if c.w_type == m.w_type:
-                mat.update(c.to_scene_data(scene, m))
-        
-        return (obj, mat)
-
+    def get_object(cls, context):
+        return context.material
+    
     @classmethod
     def poll(cls, context):
         engine = context.scene.render.engine
         return (context.material or context.object) and (engine in cls.COMPAT_ENGINES)
 
+    PROPERTIES = {
+        'nodetree': bpy.props.StringProperty(
+            name='Node Tree',
+            description='Node Tree',
+            default='',
+        ),
+        
+        'albedo': bpy.props.FloatVectorProperty(
+            name='Albedo',
+            description='Albedo',
+            subtype='COLOR',
+            min=0.0,
+            max=1.0,
+            default=(0.8, 0.8, 0.8),
+        ),
+
+        'emission': bpy.props.FloatVectorProperty(
+            name='Emission',
+            description='Emission',
+            subtype='COLOR',
+            min=0.0,
+            soft_max=1.0,
+            default=(0.0, 0.0, 0.0),
+        ),
+    }
+
+    @classmethod
+    def to_scene_data(self, scene, m):
+        w = m.tungsten
+        obj = {}
+        mat = {}
+        
+        if w.nodetree:
+            ntree = bpy.data.node_groups[w.nodetree]
+            output = ntree.output
+            if output:
+                mat = output.inputs['Material'].to_scene_data(scene)
+                mat['name'] = m.name
+                obj['bsdf'] = m.name
+            else:
+                obj['bsdf'] = scene.default_mat
+        else:
+            mat = {
+                'name': m.name,
+                'type': 'lambert',
+                'albedo': list(w.albedo),
+                'emission': list(w.emission),
+            }
+            obj['bsdf'] = m.name
+            
+        if mat.get('emission') == [0.0, 0.0, 0.0]:
+            del mat['emission']
+
+        return obj, mat
+
     def draw(self, context):
-        lay = self.layout
+        layout = self.layout
 
         mat = context.material
         ob = context.object
@@ -268,23 +240,21 @@ class W_PT_context_material(properties_material.MaterialButtonsPanel, bpy.types.
         space = context.space_data
 
         if ob:
-            row = lay.row()
-            if bpy.app.version < (2, 65, 3):
-                row.template_list(ob, 'material_slots', ob, 'active_material_index', rows=2)
-            else:
-                row.template_list('MATERIAL_UL_matslots', '', ob, 'material_slots', ob, 'active_material_index', rows=2)
+            row = layout.row()
+            row.template_list('MATERIAL_UL_matslots', '', ob, 'material_slots', ob, 'active_material_index', rows=1)
 
             col = row.column(align=True)
             col.operator('object.material_slot_add', icon='ZOOMIN', text='')
             col.operator('object.material_slot_remove', icon='ZOOMOUT', text='')
+            col.menu('MATERIAL_MT_specials', icon='DOWNARROW_HLT', text='')
 
             if ob.mode == 'EDIT':
-                row = lay.row(align=True)
+                row = layout.row(align=True)
                 row.operator('object.material_slot_assign', text='Assign')
                 row.operator('object.material_slot_select', text='Select')
                 row.operator('object.material_slot_deselect', text='Deselect')
 
-        split = lay.split(percentage=0.75)
+        split = layout.split(percentage=0.65)
 
         if ob:
             split.template_ID(ob, 'active_material', new='material.new')
@@ -298,18 +268,41 @@ class W_PT_context_material(properties_material.MaterialButtonsPanel, bpy.types.
             split.separator()
 
         if mat:
-            lay.separator()
-            lay.prop(mat, 'w_type', text='Type')
-            mat.w_albedo.draw(lay, mat)
-            mat.w_emission.draw(lay, mat)
+            layout.separator()
+            w = mat.tungsten
 
-            row = lay.row(align=True)
-            row.prop(mat, 'w_bump_strength', text='Bump')
-            mat.w_bump.draw(row, mat, text='')
+            if not w.nodetree:
+                layout.operator('tungsten.use_material_nodes', icon='NODETREE')
+                layout.prop(w, 'albedo')
+                layout.prop(w, 'emission')
+            else:
+                ntree = bpy.data.node_groups[w.nodetree]
+                node = ntree.output
+                if not node:
+                    layout.label(text='No output node')
+                else:
+                    layout.template_node_view(ntree, node, node.inputs['Material'])
 
-PANEL_CLASSES = {
-    'material': W_PT_context_material,
-}
+class TungstenBSDFNode(TungstenShaderNode):
+    def init(self, context):
+        self.outputs.new('TungstenShaderSocket', 'Material')
 
-PANEL_CLASSES.update({c.w_type: c for c in MaterialExtra.__subclasses__()})
+    def to_scene_data(self, scene):
+        return {}
 
+@TungstenShaderTree.register_node('Materials')
+class TungstenLambertNode(TungstenBSDFNode):
+    bl_label = 'Lambert'
+
+    def init(self, context):
+        super().init(context)
+        self.inputs.new('TungstenTextureSocket', 'Albedo')
+
+    def to_scene_data(self, scene):
+        return {
+            'type': 'lambert',
+            'albedo': self.inputs['Albedo'].to_scene_data(scene),
+        }
+
+    def draw_buttons(self, context, layout):
+        layout.prop(self, 'albedo')
