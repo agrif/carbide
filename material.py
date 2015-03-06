@@ -148,20 +148,57 @@ class TungstenMaterialOutputNode(TungstenNode):
         if self.inputs['Bump'].is_linked:
             layout.prop(self, 'bump_strength')
 
+# base for all material nodes, with some magic for mixins
 class TungstenBSDFNode(TungstenNode):
     w_type = None
     w_has_albedo = True
+
+    PROPERTIES = {}
+
+    @classmethod
+    def get_mro(cls, attribname):
+        for k in cls.__mro__:
+            vs = vars(k)
+            if attribname in vs:
+                yield vs[attribname]
+
+    def do_mro(self, methname, *args, **kwargs):
+        for meth in self.get_mro(methname):
+            yield meth(self, *args, **kwargs)
+
+    @classmethod
+    def register(cls):
+        for props in cls.get_mro('PROPERTIES'):
+            for k, v in props.items():
+                setattr(cls, k, v)
+
+    @classmethod
+    def unregister(cls):
+        for props in cls.get_mro('PROPERTIES'):
+            for k, v in props.items():
+                delattr(cls, k)
     
     def init(self, context):
         self.outputs.new('TungstenShaderSocket', 'Material')
         if self.w_has_albedo:
             self.inputs.new('TungstenTextureSocket', 'Albedo')
 
+        for _ in self.do_mro('_init', context):
+            pass
+
     def to_scene_data(self, scene):
         d = {'type': self.w_type}
         if self.w_has_albedo:
             d['albedo'] = self.inputs['Albedo'].to_scene_data(scene)
+
+        for x in self.do_mro('_to_scene_data', scene):
+            d.update(x)
+
         return d
+
+    def draw_buttons(self, context, layout):
+        for _ in self.do_mro('_draw_buttons', context, layout):
+            pass
 
 def lookup_ior(name):
     _, eta, k = [i for i in ior_data if i[0] == name][0]
@@ -171,76 +208,167 @@ def update_conductor_material(self, context):
     if self.material != 'CUSTOM':
         self.eta, self.k = lookup_ior(self.material)
 
-@TungstenNodeTree.register_node('Materials')
-class TungstenConductorNode(TungstenBSDFNode):
-    bl_label = 'Conductor'
-    w_type = 'conductor'
+# mixin for eta/k (conductors)
+class EtaK(TungstenBSDFNode):
+    PROPERTIES = {
+        'material': bpy.props.EnumProperty(
+            name='Material',
+            description='Conductor Material',
+            items=[
+                ('CUSTOM', 'Custom', ''),
+            ] + [(n, n, '') for n, _, _ in ior_data],
+            default='W',
+            update=update_conductor_material,
+        ),
+        'eta': bpy.props.FloatVectorProperty(
+            name='Eta',
+            description='Conductor Eta',
+            min=0,
+            default=lookup_ior('W')[0],
+        ),
+        'k': bpy.props.FloatVectorProperty(
+            name='K',
+            description='Conductor K',
+            min=0,
+            default=lookup_ior('W')[1],
+        ),
+    }
 
-    material = bpy.props.EnumProperty(
-        name='Material',
-        description='Conductor Material',
-        items=[
-            ('CUSTOM', 'Custom', ''),
-        ] + [(n, n, '') for n, _, _ in ior_data],
-        default='W',
-        update=update_conductor_material,
-    )
+    def _to_scene_data(self, scene):
+        return {
+            'eta': list(self.eta),
+            'k': list(self.k),
+        }
 
-    eta = bpy.props.FloatVectorProperty(
-        name='Eta',
-        description='Conductor Eta',
-        min=0,
-        default=lookup_ior('W')[0],
-    )
-    
-    k = bpy.props.FloatVectorProperty(
-        name='K',
-        description='Conductor K',
-        min=0,
-        default=lookup_ior('W')[1],
-    )
-
-    def to_scene_data(self, scene):
-        d = super().to_scene_data(scene)
-        d['eta'] = list(self.eta)
-        d['k'] = list(self.k)
-        return d
-
-    def draw_buttons(self, context, layout):
+    def _draw_buttons(self, context, layout):
         layout.prop(self, 'material', text='Metal')
         if self.material == 'CUSTOM':
             col = layout.column()
             col.prop(self, 'eta')
             col.prop(self, 'k')
 
-@TungstenNodeTree.register_node('Materials')
-class TungstenDielectricNode(TungstenBSDFNode):
-    bl_label = 'Dielectric'
-    w_type = 'dielectric'
+# mixin for bare ior (dielectric)
+class IOR(TungstenBSDFNode):
+    PROPERTIES = {
+        'ior': bpy.props.FloatProperty(
+            name='IOR',
+            description='Dielectric IOR',
+            min=0,
+            default=1.5,
+        ),
+        'enable_refraction': bpy.props.BoolProperty(
+            name='Refraction',
+            description='Enable Refraction',
+            default=True,
+        ),
+    }
 
-    ior = bpy.props.FloatProperty(
-        name='IOR',
-        description='Dielectric IOR',
-        min=0,
-        default=1.5,
-    )
-    
-    enable_refraction = bpy.props.BoolProperty(
-        name='Refraction',
-        description='Enable Refraction',
-        default=True,
-    )
+    def _to_scene_data(self, scene):
+        return {
+            'ior': self.ior,
+            'enable_refraction': self.enable_refraction,
+        }
 
-    def to_scene_data(self, scene):
-        d = super().to_scene_data(scene)
-        d['ior'] = self.ior
-        d['enable_refraction'] = self.enable_refraction
-        return d
-
-    def draw_buttons(self, context, layout):
+    def _draw_buttons(self, context, layout):
         layout.prop(self, 'enable_refraction')
         if self.enable_refraction:
             layout.prop(self, 'ior')
+
+# mixin for ior/thickness/sigma_a (plastic)
+class IORThicknessSigmaA(TungstenBSDFNode):
+    PROPERTIES = {
+        'ior': bpy.props.FloatProperty(
+            name='IOR',
+            description='Plastic IOR',
+            min=0,
+            default=1.5,
+        ),
+        'thickness': bpy.props.FloatProperty(
+            name='Thickness',
+            description='Plastic Thickness',
+            min=0,
+            default=1.0,
+        ),
+        'sigma_a': bpy.props.FloatVectorProperty(
+            # FIXME good bounds?
+            name='Sigma A',
+            description='Plastic Sigma A',
+            min=0,
+            default=(0.0, 0.0, 0.0),
+        ),
+    }
+
+    def _to_scene_data(self, scene):
+        return {
+            'ior': self.ior,
+            'thickness': self.thickness,
+            'sigma_a': list(self.sigma_a),
+        }
+
+    def _draw_buttons(self, context, layout):
+        layout.prop(self, 'ior')
+        layout.prop(self, 'thickness')
+        col = layout.column()
+        col.prop(self, 'sigma_a')
+
+# mixin that has a substrate
+class Substrate(TungstenBSDFNode):
+    w_has_albedo = False
+    w_substrate_name = 'substrate'
+    
+    def _init(self, context):
+        self.inputs.new('TungstenShaderSocket', 'Substrate')
+
+    def _to_scene_data(self, scene):
+        return {
+            self.w_substrate_name: self.inputs['Substrate'].to_scene_data(scene),
+        }
+
+# mixin for roughness/distribution
+class RoughnessDistribution(TungstenBSDFNode):
+    PROPERTIES = {
+        'distribution': bpy.props.EnumProperty(
+            name='Distribution',
+            description='Microfacet Distribution',
+            items=[
+                ('beckmann', 'Beckmann', ''),
+                ('phong', 'Phong', ''),
+                ('ggx', 'GGX', ''),
+            ],
+            default='ggx',
+        ),
+    }
+    
+    def _init(self, context):
+        self.inputs.new('TungstenTextureSocket', 'Roughness')
+        self.inputs['Roughness'].tex_type = 'VALUE'
+
+    def _to_scene_data(self, scene):
+        return {
+            'roughness': self.inputs['Roughness'].to_scene_data(scene),
+            'distribution': self.distribution,
+        }
+
+    def _draw_buttons(self, context, layout):
+        layout.prop(self, 'distribution')
+        
+def lookup_ior(name):
+    _, eta, k = [i for i in ior_data if i[0] == name][0]
+    return (eta, k)
+
+def update_conductor_material(self, context):
+    if self.material != 'CUSTOM':
+        self.eta, self.k = lookup_ior(self.material)
+
+@TungstenNodeTree.register_node('Materials')
+class TungstenConductorNode(EtaK):
+    bl_label = 'Conductor'
+    w_type = 'conductor'
+
+@TungstenNodeTree.register_node('Materials')
+class TungstenDielectricNode(IOR):
+    bl_label = 'Dielectric'
+    w_type = 'dielectric'
 
 @TungstenNodeTree.register_node('Materials')
 class TungstenForwardNode(TungstenBSDFNode):
@@ -262,20 +390,19 @@ class TungstenMixedNode(TungstenBSDFNode):
     bl_label = 'Mixed'
     w_type = 'mixed'
     w_has_albedo = False
-
-    def init(self, context):
-        super().init(context)
+    
+    def _init(self, context):
         self.inputs.new('TungstenShaderSocket', 'A')
         self.inputs.new('TungstenShaderSocket', 'B')
         self.inputs.new('TungstenTextureSocket', 'Ratio')
         self.inputs['Ratio'].tex_type = 'VALUE'
 
-    def to_scene_data(self, scene):
-        d = super().to_scene_data(scene)
-        d['bsdf0'] = self.inputs['A'].to_scene_data(scene)
-        d['bsdf1'] = self.inputs['B'].to_scene_data(scene)
-        d['ratio'] = self.inputs['Ratio'].to_scene_data(scene)
-        return d
+    def _to_scene_data(self, scene):
+        return {
+            'bsdf0': self.inputs['A'].to_scene_data(scene),
+            'bsdf1': self.inputs['B'].to_scene_data(scene),
+            'ratio': self.inputs['Ratio'].to_scene_data(scene),
+        }
 
 @TungstenNodeTree.register_node('Materials')
 class TungstenNullNode(TungstenBSDFNode):
@@ -288,82 +415,109 @@ class TungstenOrenNayarNode(TungstenBSDFNode):
     bl_label = 'Oren Nayar'
     w_type = 'oren_nayar'
 
-    def init(self, context):
-        super().init(context)
+    def _init(self, context):
         self.inputs.new('TungstenTextureSocket', 'Roughness')
         self.inputs['Roughness'].tex_type = 'VALUE'
 
-    def to_scene_data(self, scene):
-        d = super().to_scene_data(scene)
-        d['roughness'] = self.inputs['Roughness'].to_scene_data(scene)
-        return d
+    def _to_scene_data(self, scene):
+        return {
+            'roughness': self.inputs['Roughness'].to_scene_data(scene),
+        }
 
 @TungstenNodeTree.register_node('Materials')
 class TungstenPhongNode(TungstenBSDFNode):
     bl_label = 'Phong'
     w_type = 'phong'
 
-    exponent = bpy.props.FloatProperty(
-        name='Exponent',
-        description='Phong Exponent',
-        min=0,
-        default=100,
-    )
+    PROPERTIES = {
+        'exponent': bpy.props.FloatProperty(
+            name='Exponent',
+            description='Phong Exponent',
+            min=0,
+            default=100,
+        ),
+        'diffuse_ratio': bpy.props.FloatProperty(
+            name='Ratio',
+            description='Diffuse Ratio',
+            min=0,
+            max=1,
+            default=0.5,
+        ),
+    }
 
-    diffuse_ratio = bpy.props.FloatProperty(
-        name='Ratio',
-        description='Diffuse Ratio',
-        min=0,
-        max=1,
-        default=0.5,
-    )
+    def _to_scene_data(self, scene):
+        return {
+            'exponent': self.exponent,
+            'diffuse_ratio': self.diffuse_ratio,
+        }
 
-    def to_scene_data(self, scene):
-        d = super().to_scene_data(scene)
-        d['exponent'] = self.exponent
-        d['diffuse_ratio'] = self.diffuse_ratio
-        return d
-
-    def draw_buttons(self, context, layout):
+    def _draw_buttons(self, context, layout):
         layout.prop(self, 'exponent')
         layout.prop(self, 'diffuse_ratio')
 
 @TungstenNodeTree.register_node('Materials')
-class TungstenPlasticNode(TungstenBSDFNode):
+class TungstenPlasticNode(IORThicknessSigmaA):
     bl_label = 'Plastic'
     w_type = 'plastic'
 
-    ior = bpy.props.FloatProperty(
-        name='IOR',
-        description='Plastic IOR',
-        min=0,
-        default=1.5,
-    )
+@TungstenNodeTree.register_node('Materials')
+class TungstenRoughCoatNode(IORThicknessSigmaA, RoughnessDistribution, Substrate):
+    bl_label = 'Rough Coat'
+    w_type = 'rough_coat'
 
-    thickness = bpy.props.FloatProperty(
-        name='Thickness',
-        description='Plastic Thickness',
-        min=0,
-        default=0,
-    )
+@TungstenNodeTree.register_node('Materials')
+class TungstenRoughConductorNode(EtaK, RoughnessDistribution):
+    bl_label = 'Rough Conductor'
+    w_type = 'rough_conductor'
 
-    sigma_a = bpy.props.FloatVectorProperty(
-        # FIXME good bounds?
-        name='Sigma A',
-        description='Plastic Sigma A',
-        min=0,
-        default=(0.0, 0.0, 0.0),
-    )
+@TungstenNodeTree.register_node('Materials')
+class TungstenRoughDielectricNode(IOR, RoughnessDistribution):
+    bl_label = 'Rough Dielectric'
+    w_type = 'rough_dielectric'
 
-    def to_scene_data(self, scene):
-        d = super().to_scene_data(scene)
-        d['ior'] = self.ior
-        d['thickness'] = self.thickness
-        d['sigma_a'] = list(self.sigma_a)
-        return d
+@TungstenNodeTree.register_node('Materials')
+class TungstenRoughPlasticNode(IORThicknessSigmaA, RoughnessDistribution):
+    bl_label = 'Rough Plastic'
+    w_type = 'rough_plastic'
 
-    def draw_buttons(self, context, layout):
-        layout.prop(self, 'ior')
-        layout.prop(self, 'thickness')
-        col = layout.column()
-        col.prop(self, 'sigma_a')
+@TungstenNodeTree.register_node('Materials')
+class TungstenSmoothCoatNode(IORThicknessSigmaA, Substrate):
+    bl_label = 'Smooth Coat'
+    w_type = 'smooth_coat'
+
+# FIXME this supports a texture thickness but NOTHING ELSE DOES
+@TungstenNodeTree.register_node('Materials')
+class TungstenThinSheetNode(IORThicknessSigmaA):
+    bl_label = 'Thin Sheet'
+    w_type = 'thinsheet'
+
+    PROPERTIES = {
+        'enable_interference': bpy.props.BoolProperty(
+            name='Interference',
+            description='Enable Interference',
+            default=False,
+        ),
+    }
+
+    def _to_scene_data(self, scene):
+        return {
+            'enable_interference': self.enable_interference,
+        }
+
+    def _draw_buttons(self, context, layout):
+        layout.prop(self, 'enable_interference')
+
+@TungstenNodeTree.register_node('Materials')
+class TungstenTransparencyNode(Substrate):
+    bl_label = 'Transparency'
+    w_type = 'transparency'
+    w_substrate_name = 'base'
+
+    def _init(self, context):
+        self.inputs.new('TungstenTextureSocket', 'Alpha')
+        self.inputs['Alpha'].tex_type = 'VALUE'
+
+    def _to_scene_data(self, scene):
+        return {
+            'alpha': self.inputs['Alpha'].to_scene_data(scene),
+        }
