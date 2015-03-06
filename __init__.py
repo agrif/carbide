@@ -33,9 +33,6 @@ for mod in MODULES:
     else:
         locals()[mod] = importlib.import_module('.' + mod, __package__)
 
-from bl_ui import properties_scene
-base.compatify_all(properties_scene, 'SCENE_PT')
-
 def register():
     base.register()
 

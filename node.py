@@ -31,12 +31,12 @@ class NodeTreeProperty(props.FakeIDProperty):
 @base.register_class
 class W_OT_use_nodes(bpy.types.Operator):
     """Enable nodes on a material"""
-    bl_label = "Use Nodes"
+    bl_label = "Use Tungsten Nodes"
     bl_idname = 'tungsten.use_nodes'
 
     @classmethod
     def poll(cls, context):
-        return getattr(context, 'material', False)
+        return getattr(context, 'material', False) and context.scene.render.engine == 'TUNGSTEN'
 
     def execute(self, context):
         mat = context.material

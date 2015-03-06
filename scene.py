@@ -1,19 +1,100 @@
 import bpy
 import tempfile
 import shutil
+import os
 import os.path
 import json
 import struct
+import zipfile
 from mathutils import Vector, Matrix
+from bl_ui import properties_scene
 
+from . import base
 from .render import W_PT_renderer, W_PT_integrator
 from .material import W_PT_material
 from .camera import W_PT_camera
 from .world import W_PT_world
 
+base.compatify_all(properties_scene, 'SCENE_PT')
+
+@base.register_menu_item(bpy.types.INFO_MT_file_export)
+class W_OT_export(bpy.types.Operator):
+    """Export a scene and all components as Tungsten JSON"""
+    bl_label = "Export Tungsten Scene"
+    bl_idname = 'tungsten.export'
+
+    # FIXME folder filter via FileSelectParams
+    use_filter = True
+    use_filter_folder = True
+
+    filepath = bpy.props.StringProperty(subtype='FILE_PATH')
+    
+    self_contained = bpy.props.BoolProperty(
+        name='Self-Contained',
+        description='Self-Contained',
+        default=True,
+    )
+
+    zip = bpy.props.BoolProperty(
+        name='Use Zip',
+        description='Use Zip Format',
+        default=True,
+    )
+
+    compress = bpy.props.BoolProperty(
+        name='Compress',
+        description='Compress Zip File',
+        default=True,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.render.engine == 'TUNGSTEN'
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, 'self_contained')
+        if self.self_contained:
+            layout.prop(self, 'zip')
+            if self.zip:
+                layout.prop(self, 'compress')
+
+    def execute(self, context):
+        path = self.filepath
+        if os.path.exists(path):
+            if self.zip and not os.path.isfile(path):
+                self.report({'WARNING'}, 'Please select a file, not a directory.')
+                return {'CANCELLED'}
+            elif not self.zip and not os.path.isdir(path):
+                self.report({'WARNING'}, 'Please select a directory, not a file.')
+                return {'CANCELLED'}
+
+        if self.zip:
+            s = TungstenScene(self_contained=self.self_contained)
+            s.add_all(context.scene)
+            s.save()
+            s.to_zip(path, compress=self.compress)
+        else:
+            s = TungstenScene(clean_on_del=False, self_contained=self.self_contained, path=path)
+            s.add_all(context.scene)
+            s.save()
+        
+        return {'FINISHED'}
+    
+
 class TungstenScene:
-    def __init__(self, clean_on_del=True, self_contained=False):
-        self.dir = tempfile.mkdtemp(suffix='w')
+    def __init__(self, clean_on_del=True, self_contained=False, path=None):
+        self.dir = path
+        if path is None:
+            self.dir = tempfile.mkdtemp(suffix='w')
+        else:
+            if not os.path.exists(path):
+                os.mkdir(path)
+        
         self.clean_on_del = clean_on_del
         self.self_contained = self_contained
         self.scene = {
@@ -45,6 +126,19 @@ class TungstenScene:
     def __del__(self):
         if self.clean_on_del:
             shutil.rmtree(self.dir)
+
+    def to_zip(self, outpath, compress=True):
+        flags = zipfile.ZIP_DEFLATED if compress else 0
+        
+        with zipfile.ZipFile(outpath, 'w', flags) as zipf:
+            for root, dirs, files in os.walk(self.dir):
+                relroot = os.path.relpath(root, self.dir)
+                zipf.write(root, relroot)
+                for file in files:
+                    filename = os.path.join(root, file)
+                    if os.path.isfile(filename):
+                        arcname = os.path.join(relroot, file)
+                        zipf.write(filename, arcname)
 
     @property
     def outputfile(self):
@@ -153,13 +247,13 @@ class TungstenScene:
                 path = self.path(im.name + ext)
                 self._save_image_as(im, path, im.file_format)
                 self.images[im.name] = path
-                return path
+                return os.path.relpath(path, self.dir)
         else:
             # save as png
             path = self.path(im.name + '.png')
             self._save_image_as(im, path, 'PNG')
             self.images[im.name] = path
-            return path
+            return os.path.relpath(path, self.dir)
 
     def add_material(self, m):
         if m.name in self.mats:

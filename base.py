@@ -23,6 +23,22 @@ def register_class(cls):
     registrar(lambda: bpy.utils.register_class(cls), lambda: bpy.utils.unregister_class(cls), cls.__name__)
     return cls
 
+def register_menu_item(collection):
+    def inner(cls):
+        register_class(cls)
+
+        def menu_func(self, context):
+            self.layout.operator_context = 'INVOKE_DEFAULT'
+            self.layout.operator(cls.bl_idname)
+        def reg():
+            collection.append(menu_func)
+        def unreg():
+            collection.remove(menu_func)
+        registrar(reg, unreg, cls.__name__ + ' menu')
+        
+        return cls
+    return inner
+
 def compatify_class(cls):
     def reg():
         cls.COMPAT_ENGINES.add('TUNGSTEN')
