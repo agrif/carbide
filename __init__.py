@@ -17,6 +17,7 @@ MODULES = [
     'preferences',
     'scene',
     'engine',
+    'node',
     
     'render',
     'texture',

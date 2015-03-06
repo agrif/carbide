@@ -1,165 +1,7 @@
 import bpy
-import nodeitems_utils
 from bl_ui import properties_material
 from . import base
-
-@base.register_class
-class W_OT_use_material_nodes(bpy.types.Operator):
-    """Enable nodes on a material"""
-    bl_label = "Use Nodes"
-    bl_idname = 'tungsten.use_material_nodes'
-
-    @classmethod
-    def poll(cls, context):
-        return getattr(context, 'material', False)
-
-    def execute(self, context):
-        mat = context.material
-        w = mat.tungsten
-        
-        if w.nodetree:
-            return {'FINISHED'}
-        
-        nt = bpy.data.node_groups.new(mat.name, type='TungstenShaderTree')
-        nt.use_fake_user = True
-        w.nodetree = nt.name
-        nt.nodes.new('TungstenOutputNode')
-        
-        return {'FINISHED'}
-
-@base.register_class
-class TungstenShaderTree(bpy.types.NodeTree):
-    bl_idname = 'TungstenShaderTree'
-    bl_label = 'Tungsten Shader Tree'
-    bl_icon = 'TEXTURE_SHADED'
-
-    node_categories = {}
-
-    @classmethod
-    def register_node(cls, category):
-        def registrar(nodecls):
-            base.register_class(nodecls)
-            d = cls.node_categories.setdefault(category, [])
-            d.append(nodecls)
-            return nodecls
-        return registrar
-
-    @classmethod
-    def register(cls):
-        cats = []
-        for c, l in cls.node_categories.items():
-            cid = c.replace(' ', '').upper()
-            items = [nodeitems_utils.NodeItem(nc.__name__) for nc in l]
-            cats.append(TungstenNodeCategory(cid, c, items=items))
-
-        nodeitems_utils.register_node_categories('TUNGSTEN_SHADER', cats)
-
-    @classmethod
-    def unregister(cls):
-        nodeitems_utils.unregister_node_categories('TUNGSTEN_SHADER')
-
-    @classmethod
-    def poll(cls, context):
-        return context.scene.render.engine == 'TUNGSTEN'
-
-    @classmethod
-    def get_from_context(cls, context):
-        ob = context.active_object
-        if ob and ob.type not in {'LAMP', 'CAMERA'}:
-            ma = ob.active_material
-            if ma:
-                ntname = ma.tungsten.nodetree
-                if ntname:
-                    return bpy.data.node_groups[ma.tungsten.nodetree], ma, ma
-        return (None, None, None)
-
-    @property
-    def output(self):
-        for n in self.nodes:
-            if isinstance(n, TungstenOutputNode):
-                return n
-        return None
-
-class TungstenNodeCategory(nodeitems_utils.NodeCategory):
-    @classmethod
-    def poll(cls, context):
-        return context.space_data.tree_type == 'TungstenShaderTree'
-
-class TungstenShaderNode(bpy.types.Node):
-    @classmethod
-    def poll(cls, ntree):
-        return ntree.bl_idname == 'TungstenShaderTree'
-
-@base.register_class
-class TungstenShaderSocket(bpy.types.NodeSocket):
-    bl_idname = 'TungstenShaderSocket'
-    bl_label = 'Tungsten Shader Socket'
-
-    default_value = bpy.props.FloatVectorProperty(
-        name='Albedo',
-        description='Albedo',
-        subtype='COLOR',
-        min=0.0,
-        max=1.0,
-        default=(0.8, 0.8, 0.8),
-    )
-
-    def to_scene_data(self, scene):
-        if not self.is_linked:
-            return {
-                'type': 'lambert',
-                'albedo': list(self.default_value),
-            }
-        return self.links[0].from_node.to_scene_data(scene)
-    
-    def draw_value(self, context, layout, node):
-        layout.label(self.name)
-
-    def draw_color(self, context, node):
-        return (0.1, 1.0, 0.2, 0.75)
-
-    def draw(self, context, layout, node, text):
-        if self.is_output or self.is_linked:
-            layout.label(self.name)
-        else:
-            layout.prop(self, 'default_value', text=self.name)
-
-@base.register_class
-class TungstenTextureSocket(bpy.types.NodeSocket):
-    bl_idname = 'TungstenTextureSocket'
-    bl_label = 'Tungsten Texture Socket'
-
-    default_value = bpy.props.FloatVectorProperty(
-        name='Color',
-        description='Color',
-        subtype='COLOR',
-        min=0.0,
-        max=1.0,
-        default=(0.8, 0.8, 0.8),
-    )
-
-    def to_scene_data(self, scene):
-        if not self.is_linked:
-            return list(self.default_value)
-        return self.links[0].from_node.to_scene_data(scene)
-    
-    def draw_value(self, context, layout, node):
-        layout.label(self.name)
-
-    def draw_color(self, context, node):
-        return (1.0, 0.1, 0.2, 0.75)
-
-    def draw(self, context, layout, node, text):
-        if self.is_output or self.is_linked:
-            layout.label(self.name)
-        else:
-            layout.prop(self, 'default_value', text=self.name)
-
-@TungstenShaderTree.register_node('Output')
-class TungstenOutputNode(TungstenShaderNode):
-    bl_label = 'Output'
-    def init(self, context):
-        self.inputs.new('TungstenShaderSocket', 'Material')
+from .node import TungstenNodeTree, TungstenNode, NodeTreeProperty
 
 @base.register_root_panel
 class W_PT_material(properties_material.MaterialButtonsPanel, base.RootPanel):
@@ -177,10 +19,9 @@ class W_PT_material(properties_material.MaterialButtonsPanel, base.RootPanel):
         return (context.material or context.object) and (engine in cls.COMPAT_ENGINES)
 
     PROPERTIES = {
-        'nodetree': bpy.props.StringProperty(
-            name='Node Tree',
-            description='Node Tree',
-            default='',
+        'material': NodeTreeProperty(
+            name='Material',
+            description='Material',
         ),
         
         'albedo': bpy.props.FloatVectorProperty(
@@ -207,27 +48,22 @@ class W_PT_material(properties_material.MaterialButtonsPanel, base.RootPanel):
         w = m.tungsten
         obj = {}
         mat = {}
-        
-        if w.nodetree:
-            ntree = bpy.data.node_groups[w.nodetree]
-            output = ntree.output
-            if output:
-                mat = output.inputs['Material'].to_scene_data(scene)
-                mat['name'] = m.name
-                obj['bsdf'] = m.name
-            else:
-                obj['bsdf'] = scene.default_mat
+
+        ret = w.material.to_scene_data(scene, w)
+        if ret:
+            obj, mat = ret
         else:
             mat = {
-                'name': m.name,
                 'type': 'lambert',
                 'albedo': list(w.albedo),
                 'emission': list(w.emission),
             }
-            obj['bsdf'] = m.name
             
         if mat.get('emission') == [0.0, 0.0, 0.0]:
             del mat['emission']
+
+        mat['name'] = m.name
+        obj['bsdf'] = m.name
 
         return obj, mat
 
@@ -271,26 +107,54 @@ class W_PT_material(properties_material.MaterialButtonsPanel, base.RootPanel):
             layout.separator()
             w = mat.tungsten
 
-            if not w.nodetree:
-                layout.operator('tungsten.use_material_nodes', icon='NODETREE')
+            if not w.material.draw(layout, w):
                 layout.prop(w, 'albedo')
                 layout.prop(w, 'emission')
-            else:
-                ntree = bpy.data.node_groups[w.nodetree]
-                node = ntree.output
-                if not node:
-                    layout.label(text='No output node')
-                else:
-                    layout.template_node_view(ntree, node, node.inputs['Material'])
 
-class TungstenBSDFNode(TungstenShaderNode):
+@TungstenNodeTree.register_node('Output')
+class TungstenMaterialOutputNode(TungstenNode):
+    bl_label = 'Material Output'
+    w_output = True
+
+    bump_strength = bpy.props.FloatProperty(
+        name='Bump Strength',
+        description='Bump Strength',
+        min=0.0,
+        soft_max=10.0,
+        default=1.0,
+    )
+
+    def init(self, context):
+        self.inputs.new('TungstenShaderSocket', 'Material')
+        self.inputs.new('TungstenTextureSocket', 'Emission')
+        self.inputs['Emission'].default_value = (0.0, 0.0, 0.0)
+        self.inputs.new('TungstenTextureSocket', 'Bump')
+        self.inputs['Bump'].show_color = False
+
+    def to_scene_data(self, scene):
+        mat = self.inputs['Material'].to_scene_data(scene)
+        obj = {
+            'emission': self.inputs['Emission'].to_scene_data(scene),
+        }
+
+        if self.inputs['Bump'].is_linked:
+            obj['bump'] = self.inputs['Bump'].to_scene_data(scene)
+            obj['bump_strength'] = self.bump_strength
+
+        return obj, mat
+
+    def draw_buttons(self, context, layout):
+        if self.inputs['Bump'].is_linked:
+            layout.prop(self, 'bump_strength')
+
+class TungstenBSDFNode(TungstenNode):
     def init(self, context):
         self.outputs.new('TungstenShaderSocket', 'Material')
 
     def to_scene_data(self, scene):
         return {}
 
-@TungstenShaderTree.register_node('Materials')
+@TungstenNodeTree.register_node('Materials')
 class TungstenLambertNode(TungstenBSDFNode):
     bl_label = 'Lambert'
 
@@ -303,6 +167,3 @@ class TungstenLambertNode(TungstenBSDFNode):
             'type': 'lambert',
             'albedo': self.inputs['Albedo'].to_scene_data(scene),
         }
-
-    def draw_buttons(self, context, layout):
-        layout.prop(self, 'albedo')

@@ -2,12 +2,12 @@ import bpy
 import math
 from bl_ui import properties_texture
 
-from . import props, base
+from . import props, base, node
 
 class TextureProperty(props.FakeIDProperty):
     ID_NAME = 'texture'
     HUMAN_NAME = 'Texture'
-    SLOTS_NAME = 'texture_slots'
+    COLLECTION = 'textures'
     
     def to_scene_data(self, scene, mat):
         tex = self.normalize(mat)
@@ -16,8 +16,8 @@ class TextureProperty(props.FakeIDProperty):
         return None
 
 class FloatTextureProperty(TextureProperty):
-    def __init__(self, name, description, default, get_obj=lambda x: x):
-        super().__init__(name, description, get_obj=get_obj)
+    def __init__(self, name, description, default):
+        super().__init__(name, description)
         self.properties['value'] = bpy.props.FloatProperty(
             name=name,
             description=description,
@@ -38,8 +38,8 @@ class FloatTextureProperty(TextureProperty):
         return tex
 
 class ColorTextureProperty(TextureProperty):
-    def __init__(self, name, description, default, get_obj=lambda x: x):
-        super().__init__(name, description, get_obj=get_obj)
+    def __init__(self, name, description, default):
+        super().__init__(name, description)
         self.properties['color'] = bpy.props.FloatVectorProperty(
             name=name,
             description=description,
@@ -60,37 +60,21 @@ class ColorTextureProperty(TextureProperty):
             return list(getattr(mat, self.prefix + 'color'))
         return tex
 
-class TextureExtra(properties_texture.TextureButtonsPanel, bpy.types.Panel):
-    bl_label = ''
-    w_type = ''
+@node.TungstenNodeTree.register_node('Input')
+@props.meta_propertize
+class TungstenTextureNode(node.TungstenNode):
+    bl_label = 'Texture'
 
-    @classmethod
-    def poll(cls, context):
-        if W_PT_context_texture.poll(context):
-            tex = context.texture
-            if tex and tex.w_type == cls.w_type:
-                return True
-        return False
+    texture = TextureProperty('Texture', 'Texture')
+    
+    def init(self, context):
+        self.outputs.new('TungstenTextureSocket', 'Texture')
 
-    def draw(self, context):
-        tex = context.texture
-        self.draw_extra(self.layout, tex)
+    def to_scene_data(self, scene):
+        return self.texture.to_scene_data(scene, self)
 
-    @classmethod
-    def to_scene_data(self, scene, tex):
-        return {}
-
-    def draw_extra(self, lay, tex):
-        pass
-
-class W_PT_blade(TextureExtra):
-    bl_label = 'Blade'
-    w_type = 'blade'
-
-    REGISTER_PROPERTIES = {
-        bpy.types.Texture: {
-        },
-    }
+    def draw_buttons(self, context, layout):
+        self.texture.draw(layout, self, text='')
 
 # try to keep blender in-the-know about the texture type
 def update_tex_type(self, context):

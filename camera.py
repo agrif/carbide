@@ -65,12 +65,6 @@ class W_PT_camera(properties_data_camera.CameraButtonsPanel, base.RootPanel):
             row.prop(cam, 'angle')
         row.prop(cam, 'lens_unit', text="")
 
-def get_world_from_camera(camw):
-    for scene in bpy.data.scenes:
-        if scene.camera and scene.camera.data and scene.camera.data.tungsten == camw:
-            return scene.world
-    return None
-
 @base.register_class
 class W_PT_thinlens(W_PT_camera.SubPanel):
     bl_label = "Thin Lens"
@@ -107,7 +101,6 @@ class W_PT_thinlens(W_PT_camera.SubPanel):
         'aperture': TextureProperty(
             name='Aperture',
             description='Aperture',
-            get_obj=get_world_from_camera,
         ),
     }
 
