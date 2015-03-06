@@ -1,5 +1,6 @@
 import bpy
 from bl_ui import properties_material
+from .complex_ior_data import data as ior_data
 from . import base
 from .node import TungstenNodeTree, TungstenNode, NodeTreeProperty
 
@@ -127,9 +128,9 @@ class TungstenMaterialOutputNode(TungstenNode):
     def init(self, context):
         self.inputs.new('TungstenShaderSocket', 'Material')
         self.inputs.new('TungstenTextureSocket', 'Emission')
-        self.inputs['Emission'].default_value = (0.0, 0.0, 0.0)
+        self.inputs['Emission'].default_color = (0.0, 0.0, 0.0)
         self.inputs.new('TungstenTextureSocket', 'Bump')
-        self.inputs['Bump'].show_color = False
+        self.inputs['Bump'].tex_type = 'PURE'
 
     def to_scene_data(self, scene):
         mat = self.inputs['Material'].to_scene_data(scene)
@@ -148,22 +149,221 @@ class TungstenMaterialOutputNode(TungstenNode):
             layout.prop(self, 'bump_strength')
 
 class TungstenBSDFNode(TungstenNode):
+    w_type = None
+    w_has_albedo = True
+    
     def init(self, context):
         self.outputs.new('TungstenShaderSocket', 'Material')
+        if self.w_has_albedo:
+            self.inputs.new('TungstenTextureSocket', 'Albedo')
 
     def to_scene_data(self, scene):
-        return {}
+        d = {'type': self.w_type}
+        if self.w_has_albedo:
+            d['albedo'] = self.inputs['Albedo'].to_scene_data(scene)
+        return d
+
+def lookup_ior(name):
+    _, eta, k = [i for i in ior_data if i[0] == name][0]
+    return (eta, k)
+
+def update_conductor_material(self, context):
+    if self.material != 'CUSTOM':
+        self.eta, self.k = lookup_ior(self.material)
+
+@TungstenNodeTree.register_node('Materials')
+class TungstenConductorNode(TungstenBSDFNode):
+    bl_label = 'Conductor'
+    w_type = 'conductor'
+
+    material = bpy.props.EnumProperty(
+        name='Material',
+        description='Conductor Material',
+        items=[
+            ('CUSTOM', 'Custom', ''),
+        ] + [(n, n, '') for n, _, _ in ior_data],
+        default='W',
+        update=update_conductor_material,
+    )
+
+    eta = bpy.props.FloatVectorProperty(
+        name='Eta',
+        description='Conductor Eta',
+        min=0,
+        default=lookup_ior('W')[0],
+    )
+    
+    k = bpy.props.FloatVectorProperty(
+        name='K',
+        description='Conductor K',
+        min=0,
+        default=lookup_ior('W')[1],
+    )
+
+    def to_scene_data(self, scene):
+        d = super().to_scene_data(scene)
+        d['eta'] = list(self.eta)
+        d['k'] = list(self.k)
+        return d
+
+    def draw_buttons(self, context, layout):
+        layout.prop(self, 'material', text='Metal')
+        if self.material == 'CUSTOM':
+            col = layout.column()
+            col.prop(self, 'eta')
+            col.prop(self, 'k')
+
+@TungstenNodeTree.register_node('Materials')
+class TungstenDielectricNode(TungstenBSDFNode):
+    bl_label = 'Dielectric'
+    w_type = 'dielectric'
+
+    ior = bpy.props.FloatProperty(
+        name='IOR',
+        description='Dielectric IOR',
+        min=0,
+        default=1.5,
+    )
+    
+    enable_refraction = bpy.props.BoolProperty(
+        name='Refraction',
+        description='Enable Refraction',
+        default=True,
+    )
+
+    def to_scene_data(self, scene):
+        d = super().to_scene_data(scene)
+        d['ior'] = self.ior
+        d['enable_refraction'] = self.enable_refraction
+        return d
+
+    def draw_buttons(self, context, layout):
+        layout.prop(self, 'enable_refraction')
+        if self.enable_refraction:
+            layout.prop(self, 'ior')
+
+@TungstenNodeTree.register_node('Materials')
+class TungstenForwardNode(TungstenBSDFNode):
+    bl_label = 'Forward'
+    w_type = 'forward'
 
 @TungstenNodeTree.register_node('Materials')
 class TungstenLambertNode(TungstenBSDFNode):
     bl_label = 'Lambert'
+    w_type = 'lambert'
+
+@TungstenNodeTree.register_node('Materials')
+class TungsteMirrorNode(TungstenBSDFNode):
+    bl_label = 'Mirror'
+    w_type = 'mirror'
+
+@TungstenNodeTree.register_node('Materials')
+class TungstenMixedNode(TungstenBSDFNode):
+    bl_label = 'Mixed'
+    w_type = 'mixed'
+    w_has_albedo = False
 
     def init(self, context):
         super().init(context)
-        self.inputs.new('TungstenTextureSocket', 'Albedo')
+        self.inputs.new('TungstenShaderSocket', 'A')
+        self.inputs.new('TungstenShaderSocket', 'B')
+        self.inputs.new('TungstenTextureSocket', 'Ratio')
+        self.inputs['Ratio'].tex_type = 'VALUE'
 
     def to_scene_data(self, scene):
-        return {
-            'type': 'lambert',
-            'albedo': self.inputs['Albedo'].to_scene_data(scene),
-        }
+        d = super().to_scene_data(scene)
+        d['bsdf0'] = self.inputs['A'].to_scene_data(scene)
+        d['bsdf1'] = self.inputs['B'].to_scene_data(scene)
+        d['ratio'] = self.inputs['Ratio'].to_scene_data(scene)
+        return d
+
+@TungstenNodeTree.register_node('Materials')
+class TungstenNullNode(TungstenBSDFNode):
+    bl_label = 'Null'
+    w_type = 'null'
+    w_has_albedo = False
+
+@TungstenNodeTree.register_node('Materials')
+class TungstenOrenNayarNode(TungstenBSDFNode):
+    bl_label = 'Oren Nayar'
+    w_type = 'oren_nayar'
+
+    def init(self, context):
+        super().init(context)
+        self.inputs.new('TungstenTextureSocket', 'Roughness')
+        self.inputs['Roughness'].tex_type = 'VALUE'
+
+    def to_scene_data(self, scene):
+        d = super().to_scene_data(scene)
+        d['roughness'] = self.inputs['Roughness'].to_scene_data(scene)
+        return d
+
+@TungstenNodeTree.register_node('Materials')
+class TungstenPhongNode(TungstenBSDFNode):
+    bl_label = 'Phong'
+    w_type = 'phong'
+
+    exponent = bpy.props.FloatProperty(
+        name='Exponent',
+        description='Phong Exponent',
+        min=0,
+        default=100,
+    )
+
+    diffuse_ratio = bpy.props.FloatProperty(
+        name='Ratio',
+        description='Diffuse Ratio',
+        min=0,
+        max=1,
+        default=0.5,
+    )
+
+    def to_scene_data(self, scene):
+        d = super().to_scene_data(scene)
+        d['exponent'] = self.exponent
+        d['diffuse_ratio'] = self.diffuse_ratio
+        return d
+
+    def draw_buttons(self, context, layout):
+        layout.prop(self, 'exponent')
+        layout.prop(self, 'diffuse_ratio')
+
+@TungstenNodeTree.register_node('Materials')
+class TungstenPlasticNode(TungstenBSDFNode):
+    bl_label = 'Plastic'
+    w_type = 'plastic'
+
+    ior = bpy.props.FloatProperty(
+        name='IOR',
+        description='Plastic IOR',
+        min=0,
+        default=1.5,
+    )
+
+    thickness = bpy.props.FloatProperty(
+        name='Thickness',
+        description='Plastic Thickness',
+        min=0,
+        default=0,
+    )
+
+    sigma_a = bpy.props.FloatVectorProperty(
+        # FIXME good bounds?
+        name='Sigma A',
+        description='Plastic Sigma A',
+        min=0,
+        default=(0.0, 0.0, 0.0),
+    )
+
+    def to_scene_data(self, scene):
+        d = super().to_scene_data(scene)
+        d['ior'] = self.ior
+        d['thickness'] = self.thickness
+        d['sigma_a'] = list(self.sigma_a)
+        return d
+
+    def draw_buttons(self, context, layout):
+        layout.prop(self, 'ior')
+        layout.prop(self, 'thickness')
+        col = layout.column()
+        col.prop(self, 'sigma_a')

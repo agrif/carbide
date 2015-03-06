@@ -156,7 +156,7 @@ class TungstenTextureSocket(bpy.types.NodeSocket):
     bl_idname = 'TungstenTextureSocket'
     bl_label = 'Tungsten Texture Socket'
 
-    default_value = bpy.props.FloatVectorProperty(
+    default_color = bpy.props.FloatVectorProperty(
         name='Color',
         description='Color',
         subtype='COLOR',
@@ -165,18 +165,36 @@ class TungstenTextureSocket(bpy.types.NodeSocket):
         default=(0.8, 0.8, 0.8),
     )
 
-    show_color = bpy.props.BoolProperty(
-        name='show color',
-        description='show color',
-        default=True,
+    default_value = bpy.props.FloatProperty(
+        name='Value',
+        description='Value',
+        min=0.0,
+        soft_max=1.0,
+        default=0.5,
     )
 
+    tex_type = bpy.props.EnumProperty(
+        name='Texture Type',
+        description='Texture Type',
+        items=[
+            ('COLOR', 'Color', ''),
+            ('VALUE', 'Value', ''),
+            ('PURE', 'Pure', ''),
+        ],
+        default='COLOR',
+    )
+    
     def to_scene_data(self, scene):
         if self.is_linked:
             d = self.links[0].from_node.to_scene_data(scene)
             if d:
                 return d
-        return list(self.default_value)
+        if self.tex_type == 'COLOR':
+            return list(self.default_color)
+        elif self.tex_type == 'VALUE':
+            return self.default_value
+        else:
+            return 0.0
     
     def draw_value(self, context, layout, node):
         layout.label(self.name)
@@ -185,7 +203,10 @@ class TungstenTextureSocket(bpy.types.NodeSocket):
         return (1.0, 0.1, 0.2, 0.8)
 
     def draw(self, context, layout, node, text):
-        if not self.show_color or self.is_output or self.is_linked:
+        if self.tex_type == 'PURE' or self.is_output or self.is_linked:
             layout.label(self.name)
         else:
-            layout.prop(self, 'default_value', text=self.name)
+            if self.tex_type == 'COLOR':
+                layout.prop(self, 'default_color', text=self.name)
+            elif self.tex_type == 'VALUE':
+                layout.prop(self, 'default_value', text=self.name)
