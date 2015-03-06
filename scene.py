@@ -334,16 +334,18 @@ class TungstenScene:
         return outname
 
     def add_object(self, scene, o):
-        if o.type != 'MESH':
+        try:
+            mesh = o.to_mesh(scene, True, 'RENDER', True)
+        except RuntimeError:
+            # oh well, no geometry here
             return
-
+        
         dat = {
             'name': o.name,
             'type': 'mesh',
             'smooth': True,
         }
 
-        mesh = o.to_mesh(scene, True, 'RENDER', True)
         dat['file'] = self.add_mesh(mesh, name=o.name)
         bpy.data.meshes.remove(mesh)
 
