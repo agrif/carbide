@@ -26,11 +26,16 @@ class W_PT_world(properties_world.WorldButtonsPanel, base.RootPanel):
     @classmethod
     def to_scene_data(self, scene, world):
         w = world.tungsten
-        return {
+        d = {
             'type': 'infinite_sphere',
             'bsdf': {'type': 'null'},
             'emission': w.emission.to_scene_data(scene, w),
         }
+
+        if d['emission'] == [0.0, 0.0, 0.0]:
+            del d['emission']
+
+        return d
 
     def draw_for_object(self, world):
         layout = self.layout
