@@ -195,7 +195,7 @@ class TungstenScene:
         for v in transform:
             self.scene['camera']['transform'] += list(v)
 
-        d = W_PT_camera.to_scene_data(self, camera.data)
+        d = W_PT_camera.to_scene_data(self, camera)
         self.scene['camera'].update(d)
 
     def _save_image_as(self, im, dest, fmt):

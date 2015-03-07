@@ -41,7 +41,8 @@ class W_PT_camera(properties_data_camera.CameraButtonsPanel, base.RootPanel):
     }
 
     @classmethod
-    def to_scene_data(self, scene, cam):
+    def to_scene_data(self, scene, obj):
+        cam = obj.data
         w = cam.tungsten
         d = {
             'type': w.type,
@@ -49,7 +50,11 @@ class W_PT_camera(properties_data_camera.CameraButtonsPanel, base.RootPanel):
             'fov': math.degrees(cam.angle),
         }
 
-        d.update(super().to_scene_data(scene, cam))
+        if d['type'] == 'thinlens':
+            # FIXME camera props need object, and obj.tungsten.type
+            # does not exist!
+            d.update(W_PT_thinlens.to_scene_data(scene, obj))
+        #d.update(super().to_scene_data(scene, obj))
         return d
 
     def draw_for_object(self, cam):
@@ -105,10 +110,12 @@ class W_PT_thinlens(W_PT_camera.SubPanel):
     }
 
     @classmethod
-    def to_scene_data(cls, scene, cam):
+    def to_scene_data(cls, scene, obj):
+        cam = obj.data
+        
         dof_distance = cam.dof_distance
         if cam.dof_object:
-            l1 = scene.camera.matrix_world.translation
+            l1 = obj.matrix_world.translation
             l2 = cam.dof_object.matrix_world.translation
             dof_distance = math.sqrt(sum([(a - b)**2 for a, b in zip(l1, l2)]))
 
