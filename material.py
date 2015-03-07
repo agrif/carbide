@@ -57,11 +57,13 @@ class W_PT_material(properties_material.MaterialButtonsPanel, base.RootPanel):
             mat = {
                 'type': 'lambert',
                 'albedo': list(w.albedo),
+            }
+            obj = {
                 'emission': list(w.emission),
             }
             
-        if mat.get('emission') == [0.0, 0.0, 0.0]:
-            del mat['emission']
+        if obj.get('emission') == [0.0, 0.0, 0.0]:
+            del obj['emission']
 
         mat['name'] = m.name
         obj['bsdf'] = m.name
