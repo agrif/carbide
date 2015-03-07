@@ -108,7 +108,7 @@ class W_PT_thinlens(W_PT_camera.SubPanel):
     def to_scene_data(cls, scene, cam):
         dof_distance = cam.dof_distance
         if cam.dof_object:
-            l1 = blscene.camera.matrix_world.translation
+            l1 = scene.camera.matrix_world.translation
             l2 = cam.dof_object.matrix_world.translation
             dof_distance = math.sqrt(sum([(a - b)**2 for a, b in zip(l1, l2)]))
 
