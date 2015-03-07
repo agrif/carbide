@@ -133,7 +133,8 @@ class TungstenScene:
         with zipfile.ZipFile(outpath, 'w', flags) as zipf:
             for root, dirs, files in os.walk(self.dir):
                 relroot = os.path.relpath(root, self.dir)
-                zipf.write(root, relroot)
+                if relroot != '.':
+                    zipf.write(root, relroot)
                 for file in files:
                     filename = os.path.join(root, file)
                     if os.path.isfile(filename):
