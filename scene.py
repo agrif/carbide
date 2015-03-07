@@ -299,7 +299,7 @@ class TungstenScene:
             num_triangles += 1
 
         uvdata = None
-        if getattr(m, tessface_uv_textures, None) and len(m.tessface_uv_textures) >= 1:
+        if getattr(m, 'tessface_uv_textures', None) and len(m.tessface_uv_textures) >= 1:
             uvdata = m.tessface_uv_textures[0].data # FIXME many uv maps
         
         for n, f in enumerate(m.tessfaces):
