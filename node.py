@@ -110,12 +110,59 @@ class TungstenNodeCategory(nodeitems_utils.NodeCategory):
     def poll(cls, context):
         return context.space_data.tree_type == 'TungstenNodeTree'
 
+# base for all nodes, with some magic for mixins
 class TungstenNode(bpy.types.Node):
     w_output = False
+    PROPERTIES = {}
     
     @classmethod
     def poll(cls, ntree):
         return ntree.bl_idname == 'TungstenNodeTree'
+
+    @classmethod
+    def get_mro(cls, attribname):
+        for k in cls.__mro__:
+            vs = vars(k)
+            if attribname in vs:
+                yield vs[attribname]
+
+    def do_mro(self, methname, *args, **kwargs):
+        for meth in self.get_mro(methname):
+            yield meth(self, *args, **kwargs)
+
+    @classmethod
+    def register(cls):
+        for props in cls.get_mro('PROPERTIES'):
+            for k, v in props.items():
+                if 'register_properties' in dir(v):
+                    for kp, vp in v.get_properties(k):
+                        setattr(cls, kp, vp)
+                else:
+                    setattr(cls, k, v)
+
+    @classmethod
+    def unregister(cls):
+        for props in cls.get_mro('PROPERTIES'):
+            for k, v in props.items():
+                if 'register_properties' in dir(v):
+                    for kp, vp in v.get_properties(k):
+                        delattr(cls, kp)
+                else:
+                    delattr(cls, k)
+    
+    def init(self, context):
+        for _ in self.do_mro('_init', context):
+            pass
+
+    def to_scene_data(self, scene):
+        d = {}
+        for x in self.do_mro('_to_scene_data', scene):
+            d.update(x)
+        return d
+
+    def draw_buttons(self, context, layout):
+        for _ in self.do_mro('_draw_buttons', context, layout):
+            pass
 
 @base.register_class
 class TungstenShaderSocket(bpy.types.NodeSocket):
@@ -210,3 +257,21 @@ class TungstenTextureSocket(bpy.types.NodeSocket):
                 layout.prop(self, 'default_color', text=self.name)
             elif self.tex_type == 'VALUE':
                 layout.prop(self, 'default_value', text=self.name)
+
+@base.register_class
+class TungstenMediumSocket(bpy.types.NodeSocket):
+    bl_idname = 'TungstenMediumSocket'
+    bl_label = 'Tungsten Medium Socket'
+
+    def to_scene_data(self, scene):
+        if self.is_linked:
+            return self.links[0].from_node.to_scene_data(scene)
+    
+    def draw_value(self, context, layout, node):
+        layout.label(self.name)
+
+    def draw_color(self, context, node):
+        return (0.1, 0.2, 1.0, 0.8)
+
+    def draw(self, context, layout, node, text):
+        layout.label(self.name)

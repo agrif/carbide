@@ -4,19 +4,21 @@ class MetaProperty:
     prefix = ''
     properties = {}
 
-    def register_properties(self, props, prefix):
+    def get_properties(self, prefix):
         self.prefix = prefix + '_'
-        props[prefix] = self
+        yield (prefix, self)
         for k, v in self.properties.items():
-            props[self.prefix + k] = v
+            yield (self.prefix + k, v)
+
+    def register_properties(self, props, prefix):
+        for k, v in self.get_properties(prefix):
+            props[k] = v
 
 def meta_propertize(cls):
-    d = {}
-    for k, v in vars(cls).items():
+    for k, v in vars(cls).copy().items():
         if hasattr(v, 'register_properties'):
-            v.register_properties(d, k)
-    for k, v in d.items():
-        setattr(cls, k, v)
+            for kp, vp in v.get_properties(k):
+                setattr(cls, kp, vp)
     return cls
 
 # this class was originally written to be used for a property
@@ -38,7 +40,7 @@ class FakeIDProperty(MetaProperty):
 
         self.properties = {
             self.attr_name: bpy.props.StringProperty(
-                name=name + ' ' + self.HUMAN_NAME,
+                name=name,
                 description=description + ' ' + self.HUMAN_NAME,
                 default='',
                 update=update_id,
@@ -59,3 +61,7 @@ class FakeIDProperty(MetaProperty):
         self.normalize(mat)
         lay.prop_search(mat, self.attr_name, bpy.data, self.COLLECTION, **kwargs)
 
+class ObjectProperty(FakeIDProperty):
+    ID_NAME = 'object'
+    HUMAN_NAME = 'Object'
+    COLLECTION = 'objects'

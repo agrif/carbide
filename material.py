@@ -133,6 +133,8 @@ class TungstenMaterialOutputNode(TungstenNode):
         self.inputs['Emission'].default_color = (0.0, 0.0, 0.0)
         self.inputs.new('TungstenTextureSocket', 'Bump')
         self.inputs['Bump'].tex_type = 'PURE'
+        self.inputs.new('TungstenMediumSocket', 'Interior')
+        self.inputs.new('TungstenMediumSocket', 'Exterior')
 
     def to_scene_data(self, scene):
         mat = self.inputs['Material'].to_scene_data(scene)
@@ -144,63 +146,34 @@ class TungstenMaterialOutputNode(TungstenNode):
             obj['bump'] = self.inputs['Bump'].to_scene_data(scene)
             obj['bump_strength'] = self.bump_strength
 
+        i = self.inputs['Interior'].to_scene_data(scene)
+        e = self.inputs['Exterior'].to_scene_data(scene)
+        if i:
+            mat['int_medium'] = i
+        if e:
+            mat['ext_medium'] = e
+
         return obj, mat
 
     def draw_buttons(self, context, layout):
         if self.inputs['Bump'].is_linked:
             layout.prop(self, 'bump_strength')
 
-# base for all material nodes, with some magic for mixins
+# base for all material nodes, with albedo and type
 class TungstenBSDFNode(TungstenNode):
     w_type = None
     w_has_albedo = True
 
-    PROPERTIES = {}
-
-    @classmethod
-    def get_mro(cls, attribname):
-        for k in cls.__mro__:
-            vs = vars(k)
-            if attribname in vs:
-                yield vs[attribname]
-
-    def do_mro(self, methname, *args, **kwargs):
-        for meth in self.get_mro(methname):
-            yield meth(self, *args, **kwargs)
-
-    @classmethod
-    def register(cls):
-        for props in cls.get_mro('PROPERTIES'):
-            for k, v in props.items():
-                setattr(cls, k, v)
-
-    @classmethod
-    def unregister(cls):
-        for props in cls.get_mro('PROPERTIES'):
-            for k, v in props.items():
-                delattr(cls, k)
-    
-    def init(self, context):
+    def _init(self, context):
         self.outputs.new('TungstenShaderSocket', 'Material')
         if self.w_has_albedo:
             self.inputs.new('TungstenTextureSocket', 'Albedo')
 
-        for _ in self.do_mro('_init', context):
-            pass
-
-    def to_scene_data(self, scene):
+    def _to_scene_data(self, scene):
         d = {'type': self.w_type}
         if self.w_has_albedo:
             d['albedo'] = self.inputs['Albedo'].to_scene_data(scene)
-
-        for x in self.do_mro('_to_scene_data', scene):
-            d.update(x)
-
         return d
-
-    def draw_buttons(self, context, layout):
-        for _ in self.do_mro('_draw_buttons', context, layout):
-            pass
 
 def lookup_ior(name):
     _, eta, k = [i for i in ior_data if i[0] == name][0]
@@ -376,6 +349,7 @@ class TungstenDielectricNode(IOR):
 class TungstenForwardNode(TungstenBSDFNode):
     bl_label = 'Forward'
     w_type = 'forward'
+    w_has_albedo = False
 
 @TungstenNodeTree.register_node('Materials')
 class TungstenLambertNode(TungstenBSDFNode):

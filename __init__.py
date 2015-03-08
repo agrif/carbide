@@ -22,6 +22,7 @@ MODULES = [
     'render',
     'texture',
     'material',
+    'medium',
     'camera',
     'world'
 ]
