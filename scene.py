@@ -18,10 +18,10 @@ from .mesh import write_object_mesh
 
 base.compatify_all(properties_scene, 'SCENE_PT')
 
-@base.register_menu_item(bpy.types.INFO_MT_file_export)
+@base.register_menu_item(bpy.types.INFO_MT_file_export, text='Tungsten Scene (.zip/.json)')
 class W_OT_export(bpy.types.Operator):
     """Export a scene and all components as Tungsten JSON"""
-    bl_label = "Tungsten Scene (.zip/.json)"
+    bl_label = "Export Tungsten Scene"
     bl_idname = 'tungsten.export'
 
     # FIXME folder filter via FileSelectParams
