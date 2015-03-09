@@ -130,7 +130,8 @@ class TungstenScene:
 
     def to_zip(self, outpath, compress=True):
         flags = zipfile.ZIP_DEFLATED if compress else 0
-        
+
+        start = time.time()
         with zipfile.ZipFile(outpath, 'w', flags) as zipf:
             for root, dirs, files in os.walk(self.dir):
                 relroot = os.path.relpath(root, self.dir)
@@ -141,6 +142,8 @@ class TungstenScene:
                     if os.path.isfile(filename):
                         arcname = os.path.join(relroot, file)
                         zipf.write(filename, arcname)
+        end = time.time()
+        print('compressed zip in', end - start, 's')
 
     @property
     def outputfile(self):
@@ -162,6 +165,8 @@ class TungstenScene:
             json.dump(self.scene, f, indent=4)
 
     def add_all(self, scene):
+        start = time.time()
+        
         d = W_PT_renderer.to_scene_data(self, scene)
         self.scene['renderer'].update(d)
 
@@ -172,6 +177,9 @@ class TungstenScene:
         self.add_camera(scene, scene.camera)
         for o in scene.objects.values():
             self.add_object(scene, o)
+
+        end = time.time()
+        print('wrote scene in', end - start, 's')
 
     def add_world(self, world):
         p = W_PT_world.to_scene_data(self, world)
@@ -201,11 +209,12 @@ class TungstenScene:
 
     def _save_image_as(self, im, dest, fmt):
         # FIXME ewww
+        start = time.time()
         if im.source == 'FILE' and im.file_format == fmt:
             # abuse image properties for saving
             oldfp = im.filepath_raw
             try:
-                im.filepath_raw = dest
+                im.filepath_raw = self.path(dest)
                 im.save()
             finally:
                 im.filepath_raw = oldfp
@@ -215,9 +224,11 @@ class TungstenScene:
             oldff = s.render.image_settings.file_format
             try:
                 s.render.image_settings.file_format = fmt
-                im.save_render(dest, s)
+                im.save_render(self.path(dest), s)
             finally:
                 s.render.image_settings.file_format = oldff
+        end = time.time()
+        print('wrote', dest, 'in', end - start, 's')
 
     def add_image(self, im):
         if im.name in self.images:
@@ -246,13 +257,13 @@ class TungstenScene:
                 return path
             else:
                 # save file
-                path = self.path(im.name + ext)
+                path = im.name + ext
                 self._save_image_as(im, path, im.file_format)
                 self.images[im.name] = path
                 return os.path.relpath(path, self.dir)
         else:
             # save as png
-            path = self.path(im.name + '.png')
+            path = im.name + '.png'
             self._save_image_as(im, path, 'PNG')
             self.images[im.name] = path
             return os.path.relpath(path, self.dir)
@@ -284,7 +295,7 @@ class TungstenScene:
         else:
             verts, tris = write_mesh(o.data, fulloutname)
         end = time.time()
-        print('wrote', outname, 'in', end - start, 's -', (verts, tris))
+        print('wrote', outname, 'in', end - start, 's -', verts, 'verts,', tris, 'tris')
         
         return outname
 

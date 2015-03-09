@@ -13,11 +13,9 @@ class TungstenRenderEngine(bpy.types.RenderEngine):
     #bl_use_preview = True
 
     def update(self, data, blscene):
-        print('writing scene...')
         self.scene = scene.TungstenScene()
         self.scene.add_all(blscene)
         self.scene.save()
-        print('done writing.')
 
         self.threads = blscene.render.threads
 
@@ -38,6 +36,7 @@ class TungstenRenderEngine(bpy.types.RenderEngine):
             return
 
         print('rendering...')
+        start = time.time()
         t = tungsten.Tungsten(exe, self.scene.scenefile, threads=self.threads)
         last_spp = 0
         while t.running:
@@ -71,7 +70,8 @@ class TungstenRenderEngine(bpy.types.RenderEngine):
             self.report({'ERROR'}, 'Tungsten exited in error.')
             return
 
-        print('done rendering.')
+        end = time.time()
+        print('done rendering in', end - start, 's')
         layer.load_from_file(self.scene.outputfile)
 
         self.end_result(result)
