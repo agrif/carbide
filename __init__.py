@@ -20,6 +20,7 @@ MODULES = [
     'node',
     
     'render',
+    'mesh',
     'texture',
     'material',
     'medium',

@@ -4,7 +4,7 @@ import shutil
 import os
 import os.path
 import json
-import struct
+import time
 import zipfile
 from mathutils import Vector, Matrix
 from bl_ui import properties_scene
@@ -14,6 +14,7 @@ from .render import W_PT_renderer, W_PT_integrator
 from .material import W_PT_material
 from .camera import W_PT_camera
 from .world import W_PT_world
+from .mesh import write_mesh
 
 base.compatify_all(properties_scene, 'SCENE_PT')
 
@@ -266,89 +267,38 @@ class TungstenScene:
         self.mats[m.name] = obj
         return obj
 
-    def add_mesh(self, m, name=None):
+    def add_mesh(self, scene, o, name=None):
         if name is None:
-            name = m.name
+            name = o.name
         
-        # FIXME will break if using linked, deformed meshes...
         outname = name + '.wo3'
+        fulloutname = self.path(outname)
 
-        num_vertices = 0
-        vertices = b''
-        num_triangles = 0
-        triangles = b''
-
-        # FIXME don't dupe verts
-        def emit_vertex(v, uv, normal=None):
-            nonlocal vertices, num_vertices
-            x, y, z = v.co
-            nx, ny, nz = v.normal
-            if normal:
-                nx, ny, nz = normal
-            u, v = uv
-
-            vertices += struct.pack('=ffffffff', x, y, z, nx, ny, nz, u, v)
-            num_vertices += 1
-            return num_vertices - 1
-        def emit_triangle(i0, i1, i2, u0, u1, u2, mat, normal=None):
-            nonlocal triangles, num_triangles
-            i0 = emit_vertex(m.vertices[i0], u0, normal=normal)
-            i1 = emit_vertex(m.vertices[i1], u1, normal=normal)
-            i2 = emit_vertex(m.vertices[i2], u2, normal=normal)
-            
-            triangles += struct.pack('=IIIi', i0, i1, i2, mat)
-            num_triangles += 1
-
-        uvdata = None
-        if getattr(m, 'tessface_uv_textures', None) and len(m.tessface_uv_textures) >= 1:
-            uvdata = m.tessface_uv_textures[0].data # FIXME many uv maps
-        
-        for n, f in enumerate(m.tessfaces):
-            uv = [(0.0, 0.0)] * 4
-            if uvdata:
-                uv = uvdata[n]
-                uv = [uv.uv1, uv.uv2, uv.uv3, uv.uv4]
-
-            normal = None
-            if not f.use_smooth:
-                normal = f.normal
-            
-            i = f.vertices
-            if len(i) == 3:
-                emit_triangle(i[0], i[1], i[2], uv[0], uv[1], uv[2], f.material_index, normal=normal)
-            else:
-                i1 = i[0]
-                u1 = uv[0]
-                a = i[1:]
-                ua = uv[1:]
-                b = i[2:]
-                ub = uv[2:]
-                for (i2, i3, u2, u3) in zip(a, b, ua, ub):
-                    emit_triangle(i1, i2, i3, u1, u2, u3, f.material_index, normal=normal)
-
-        with open(self.path(outname), 'wb') as f:
-            f.write(struct.pack('Q', num_vertices))
-            f.write(vertices)
-            f.write(struct.pack('Q', num_triangles))
-            f.write(triangles)
+        start = time.time()
+        if o.type != 'MESH' or o.is_modified(scene, 'RENDER'):
+            try:
+                mesh = o.to_mesh(scene, True, 'RENDER')
+                verts, tris = write_mesh(mesh, fulloutname)
+            finally:
+                bpy.data.meshes.remove(mesh)
+        else:
+            verts, tris = write_mesh(o.data, fulloutname)
+        end = time.time()
+        print('wrote', outname, 'in', end - start, 's -', (verts, tris))
         
         return outname
 
     def add_object(self, scene, o):
-        try:
-            mesh = o.to_mesh(scene, True, 'RENDER', True)
-        except RuntimeError:
-            # oh well, no geometry here
+        if not o.type in {'MESH', 'CURVE', 'SURFACE', 'META', 'FONT'}:
+            # no geometry
             return
         
         dat = {
             'name': o.name,
             'type': 'mesh',
             'smooth': True,
+            'file': self.add_mesh(scene, o),
         }
-
-        dat['file'] = self.add_mesh(mesh, name=o.name)
-        bpy.data.meshes.remove(mesh)
 
         dat['transform'] = []
         for v in o.matrix_world:
