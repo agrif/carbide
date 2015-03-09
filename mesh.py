@@ -20,10 +20,11 @@ def write_mesh(mesh, path):
             active_uv_layer = active_uv_layer.data
 
     verts = mesh.vertices
-    wo3_verts = []
+    wo3_verts = bytearray()
     verti = 0
     wo3_indices = [{} for _ in range(len(verts))]
-    wo3_tris = []
+    wo3_tris = bytearray()
+    trii = 0
 
     uvcoord = (0.0, 0.0)
     for i, f in enumerate(mesh.tessfaces):
@@ -50,7 +51,7 @@ def write_mesh(mesh, path):
             if out_idx is None:
                 out_idx = verti
                 wo3_indices[vidx][key] = out_idx
-                wo3_verts.append(VERTFMT.pack(v.co[0], v.co[1], v.co[2], normal[0], normal[1], normal[2], uvcoord[0], uvcoord[1]))
+                wo3_verts += VERTFMT.pack(v.co[0], v.co[1], v.co[2], normal[0], normal[1], normal[2], uvcoord[0], uvcoord[1])
                 verti += 1
 
             oi.append(out_idx)
@@ -58,16 +59,18 @@ def write_mesh(mesh, path):
         matid = f.material_index
         if len(oi) == 3:
             # triangle
-            wo3_tris.append(TRIFMT.pack(oi[0], oi[1], oi[2], matid))
+            wo3_tris += TRIFMT.pack(oi[0], oi[1], oi[2], matid)
+            trii += 1
         else:
             # quad
-            wo3_tris.append(TRIFMT.pack(oi[0], oi[1], oi[2], matid))
-            wo3_tris.append(TRIFMT.pack(oi[0], oi[2], oi[3], matid))
+            wo3_tris += TRIFMT.pack(oi[0], oi[1], oi[2], matid)
+            wo3_tris += TRIFMT.pack(oi[0], oi[2], oi[3], matid)
+            trii += 2
 
     with open(path, 'wb') as f:
         f.write(LENFMT.pack(verti))
-        f.write(b''.join(wo3_verts))
-        f.write(LENFMT.pack(len(wo3_tris)))
-        f.write(b''.join(wo3_tris))
+        f.write(wo3_verts)
+        f.write(LENFMT.pack(trii))
+        f.write(wo3_tris)
 
-    return (verti, len(wo3_tris))
+    return (verti, trii)
