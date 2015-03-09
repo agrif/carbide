@@ -1,11 +1,27 @@
 import bpy
+import os.path
 import struct
+import time
+from bpy_extras.io_utils import ExportHelper
+
+from . import base
 
 LENFMT = struct.Struct('=Q')
 VERTFMT = struct.Struct('=ffffffff')
 TRIFMT = struct.Struct('=IIIi')
 
-def write_mesh(mesh, path):
+def write_object_mesh(scene, obj, path, apply_modifiers=True, **kwargs):
+    if obj.type != 'MESH' or (apply_modifiers and obj.is_modified(scene, 'RENDER')):
+        try:
+            mesh = obj.to_mesh(scene, True, 'RENDER')
+            verts, tris = write_mesh(mesh, path, **kwargs)
+        finally:
+            bpy.data.meshes.remove(mesh)
+    else:
+        verts, tris = write_mesh(obj.data, path, **kwargs)
+    return (verts, tris)
+
+def write_mesh(mesh, path, use_normals=True):
     mesh.calc_normals()
     if not mesh.tessfaces and mesh.polygons:
         mesh.calc_tessface()
@@ -29,7 +45,7 @@ def write_mesh(mesh, path):
     uvcoord = (0.0, 0.0)
     for i, f in enumerate(mesh.tessfaces):
         smooth = f.use_smooth
-        if not smooth:
+        if use_normals and not smooth:
             normal = f.normal[:]
 
         if has_uv:
@@ -40,7 +56,7 @@ def write_mesh(mesh, path):
         for j, vidx in enumerate(f.vertices):
             v = verts[vidx]
 
-            if smooth:
+            if not use_normals or smooth:
                 normal = v.normal[:]
 
             if has_uv:
@@ -74,3 +90,40 @@ def write_mesh(mesh, path):
         f.write(wo3_tris)
 
     return (verti, trii)
+
+@base.register_menu_item(bpy.types.INFO_MT_file_export)
+class W_OT_wo3_export(bpy.types.Operator, ExportHelper):
+    """Export the selected object as a .wo3 mesh."""
+    bl_label = "Tungsten Mesh (.wo3)"
+    bl_idname = 'tungsten.export_wo3'
+
+    filename_ext = '.wo3'
+    filter_glob = bpy.props.StringProperty(default='*.wo3', options={'HIDDEN'})
+
+    apply_modifiers = bpy.props.BoolProperty(
+        name='Apply Modifiers',
+        description='Apply modifiers to the exported mesh',
+        default=True,
+    )
+
+    use_normals = bpy.props.BoolProperty(
+        name='Use Normals',
+        description='Use Smooth and Flat shading (duplicate for flat)',
+        default=True,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object != None
+
+    def execute(self, context):
+        path = self.filepath
+        path = bpy.path.ensure_ext(path, self.filename_ext)
+
+        start = time.time()
+        scene = context.scene
+        obj = context.active_object
+        verts, tris = write_object_mesh(scene, obj, path, apply_modifiers=self.apply_modifiers, use_normals=self.use_normals)
+        end = time.time()
+        print('wrote', os.path.split(path)[1], 'in', end - start, 's -', verts, 'verts,', tris, 'tris')
+        return {'FINISHED'}

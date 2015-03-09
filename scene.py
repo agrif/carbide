@@ -14,14 +14,14 @@ from .render import W_PT_renderer, W_PT_integrator
 from .material import W_PT_material
 from .camera import W_PT_camera
 from .world import W_PT_world
-from .mesh import write_mesh
+from .mesh import write_object_mesh
 
 base.compatify_all(properties_scene, 'SCENE_PT')
 
 @base.register_menu_item(bpy.types.INFO_MT_file_export)
 class W_OT_export(bpy.types.Operator):
     """Export a scene and all components as Tungsten JSON"""
-    bl_label = "Export Tungsten Scene"
+    bl_label = "Tungsten Scene (.zip/.json)"
     bl_idname = 'tungsten.export'
 
     # FIXME folder filter via FileSelectParams
@@ -286,14 +286,7 @@ class TungstenScene:
         fulloutname = self.path(outname)
 
         start = time.time()
-        if o.type != 'MESH' or o.is_modified(scene, 'RENDER'):
-            try:
-                mesh = o.to_mesh(scene, True, 'RENDER')
-                verts, tris = write_mesh(mesh, fulloutname)
-            finally:
-                bpy.data.meshes.remove(mesh)
-        else:
-            verts, tris = write_mesh(o.data, fulloutname)
+        verts, tris = write_object_mesh(scene, o, fulloutname)
         end = time.time()
         print('wrote', outname, 'in', end - start, 's -', verts, 'verts,', tris, 'tris')
         
