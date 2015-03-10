@@ -173,7 +173,8 @@ class TungstenScene:
         d = W_PT_integrator.to_scene_data(self, scene)
         self.scene['integrator'].update(d)
 
-        self.add_world(scene.world)
+        if scene.world:
+            self.add_world(scene.world)
         self.add_camera(scene, scene.camera)
         for o in scene.objects.values():
             self.add_object(scene, o)
