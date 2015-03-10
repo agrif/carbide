@@ -255,19 +255,19 @@ class TungstenScene:
             if path and os.path.exists(path) and not self.self_contained:
                 # use existing file
                 self.images[im.name] = path
-                return path
+                return os.path.relpath(path, self.dir)
             else:
                 # save file
                 path = im.name + ext
                 self._save_image_as(im, path, im.file_format)
                 self.images[im.name] = path
-                return os.path.relpath(path, self.dir)
+                return path
         else:
             # save as png
             path = im.name + '.png'
             self._save_image_as(im, path, 'PNG')
             self.images[im.name] = path
-            return os.path.relpath(path, self.dir)
+            return path
 
     def add_material(self, m):
         if m.name in self.mats:
