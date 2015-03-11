@@ -254,8 +254,13 @@ class TungstenScene:
             
             if path and os.path.exists(path) and not self.self_contained:
                 # use existing file
-                self.images[im.name] = path
-                return os.path.relpath(path, self.dir)
+                try:
+                    p = os.path.relpath(path, self.dir)
+                    self.images[im.name] = p
+                    return p
+                except ValueError:
+                    self.images[im.name] = path
+                    return path
             else:
                 # save file
                 path = im.name + ext
