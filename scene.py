@@ -6,6 +6,7 @@ import os.path
 import json
 import time
 import zipfile
+import math
 from mathutils import Vector, Matrix
 from bl_ui import properties_scene
 
@@ -86,7 +87,31 @@ class W_OT_export(bpy.types.Operator):
             s.save()
         
         return {'FINISHED'}
-    
+
+def lefthandify(m):
+    # flip +z to -z, and then compensate along x
+    m *= Matrix.Scale(-1, 4, Vector((0, 0, 1)))
+    m *= Matrix.Scale(-1, 4, Vector((1, 0, 0)))
+    return m
+
+def reset_scale(m):
+    # remove all scaling while preserving other bits
+    s = m.to_scale()
+    m *= Matrix.Scale(abs(1/s[0]), 4, Vector((1, 0, 0)))
+    m *= Matrix.Scale(abs(1/s[1]), 4, Vector((0, 1, 0)))
+    m *= Matrix.Scale(abs(1/s[2]), 4, Vector((0, 0, 1)))
+    return m
+
+def orientify(m):
+    # tungsten uses x right, y up, z forward
+    # blender uses x right, y forward, z up
+    # this sticks a bit on the front of m to get tungsten prims oriented
+    return m * Matrix([
+        [1, 0, 0, 0],
+        [0, 0, 1, 0],
+        [0, 1, 0, 0],
+        [0, 0, 0, 1],
+    ])
 
 class TungstenScene:
     def __init__(self, clean_on_del=True, self_contained=False, path=None):
@@ -185,12 +210,15 @@ class TungstenScene:
 
     def add_world(self, world):
         p = W_PT_world.to_scene_data(self, world)
+        p['transform'] = []
+        for v in orientify(Matrix()):
+            p['transform'] += list(v)
         self.scene['primitives'].append(p)
 
     def add_camera(self, scene, camera):
         # look_at and friends are right-handed, but tungsten at
         # large is left-handed, for... reasons...
-        transform = camera.matrix_world * Matrix.Scale(-1, 4, Vector((0, 0, 1))) * Matrix.Scale(-1, 4, Vector((1, 0, 0)))
+        transform = lefthandify(reset_scale(camera.matrix_world))
 
         scale = scene.render.resolution_percentage / 100
         # FIXME scene.render.pixel_aspect_x/y ?
@@ -304,8 +332,10 @@ class TungstenScene:
             'name': o.name,
         }
 
+        matrix_world = o.matrix_world
         if o.type in {'LAMP'}:
             dat.update(W_PT_lamp.to_scene_data(scene, o.data))
+            matrix_world = orientify(reset_scale(matrix_world))
         elif not o.type in {'MESH', 'CURVE', 'SURFACE', 'META', 'FONT'}:
             # no geometry
             return
@@ -323,7 +353,7 @@ class TungstenScene:
 
         # handle transforms
         transform = dat.get('transform', Matrix())
-        transform = o.matrix_world * transform
+        transform = matrix_world * transform
         dat['transform'] = []
         for v in transform:
             dat['transform'] += list(v)
