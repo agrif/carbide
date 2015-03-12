@@ -4,6 +4,8 @@ from .complex_ior_data import data as ior_data
 from . import base
 from .node import TungstenNodeTree, TungstenNode, NodeTreeProperty
 
+base.compatify_class(properties_material.MATERIAL_PT_custom_props)
+
 @base.register_root_panel
 class W_PT_material(properties_material.MaterialButtonsPanel, base.RootPanel):
     bl_label = ""

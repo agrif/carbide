@@ -6,6 +6,8 @@ from . import base
 from .texture import TextureProperty
 
 base.compatify_class(properties_data_camera.DATA_PT_context_camera)
+base.compatify_class(properties_data_camera.DATA_PT_camera_display)
+base.compatify_class(properties_data_camera.DATA_PT_custom_props_camera)
 
 @base.register_root_panel
 class W_PT_camera(properties_data_camera.CameraButtonsPanel, base.RootPanel):
@@ -69,6 +71,12 @@ class W_PT_camera(properties_data_camera.CameraButtonsPanel, base.RootPanel):
         else:
             row.prop(cam, 'angle')
         row.prop(cam, 'lens_unit', text="")
+
+        # Tungsten doesn't use these, but blender's GL view does
+        row = layout.row()
+        row.label('Clipping:')
+        row.prop(cam, 'clip_start', text='')
+        row.prop(cam, 'clip_end', text='')
 
 @base.register_class
 class W_PT_thinlens(W_PT_camera.SubPanel):

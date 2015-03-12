@@ -5,6 +5,7 @@ from . import base
 from .texture import ColorTextureProperty
 
 base.compatify_class(properties_world.WORLD_PT_context_world)
+base.compatify_class(properties_world.WORLD_PT_custom_props)
 
 @base.register_root_panel
 class W_PT_world(properties_world.WorldButtonsPanel, base.RootPanel):

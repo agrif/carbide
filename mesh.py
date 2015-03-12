@@ -3,8 +3,17 @@ import os.path
 import struct
 import time
 from bpy_extras.io_utils import ImportHelper, ExportHelper
+from bl_ui import properties_data_mesh
 
 from . import base
+
+base.compatify_class(properties_data_mesh.DATA_PT_context_mesh)
+base.compatify_class(properties_data_mesh.DATA_PT_normals)
+base.compatify_class(properties_data_mesh.DATA_PT_vertex_groups)
+base.compatify_class(properties_data_mesh.DATA_PT_shape_keys)
+# uv_texture / vertex_colors not supported
+base.compatify_class(properties_data_mesh.DATA_PT_customdata)
+base.compatify_class(properties_data_mesh.DATA_PT_custom_props_mesh)
 
 LENFMT = struct.Struct('=Q')
 VERTFMT = struct.Struct('=ffffffff')
