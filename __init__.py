@@ -18,14 +18,16 @@ MODULES = [
     'scene',
     'engine',
     'node',
-    
-    'render',
-    'mesh',
+
     'texture',
     'material',
     'medium',
+
+    'render',
+    'mesh',
+    'lamp',
     'camera',
-    'world'
+    'world',
 ]
 
 import importlib, imp

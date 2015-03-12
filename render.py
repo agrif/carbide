@@ -173,7 +173,7 @@ class W_PT_integrator(properties_render.RenderButtonsPanel, base.RootPanel):
         row.prop(w, 'min_bounces', text="Min")
         row.prop(w, 'max_bounces', text="Max")
 
-@base.register_class
+@base.register_sub_panel
 class W_PT_photon_map(W_PT_integrator.SubPanel):
     bl_label = "Tungsten Photon Map"
     w_types = {'photon_map', 'progressive_photon_map'}
@@ -237,7 +237,7 @@ class W_PT_photon_map(W_PT_integrator.SubPanel):
         row.prop(w, 'gather_photon_count', text="Count")
         row.prop(w, 'gather_radius', text="Radius")
 
-@base.register_class
+@base.register_sub_panel
 class W_PT_pppm(W_PT_integrator.SubPanel):
     bl_label = "Tungsten PPPM"
     w_type = 'progressive_photon_map'

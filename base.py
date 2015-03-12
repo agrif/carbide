@@ -81,14 +81,12 @@ def register_root_panel(k):
         Parent = k
         w_type = None
         w_types = set()
-        
+
         @classmethod
         def poll_for_object(cls, obj):
-            w = getattr(obj, cls.Parent.prop_name)
-            if w:
-                typ = getattr(w, 'type', None)
-                if typ == cls.w_type or typ in cls.w_types:
-                    return True
+            typ = cls.Parent.get_object_type(obj)
+            if typ == cls.w_type or typ in cls.w_types:
+                return True
             return False
             
         @classmethod
@@ -109,6 +107,7 @@ def register_root_panel(k):
             return cls.Parent.get_object(context)
         
     k.SubPanel = SubPanel
+    k.sub_panels = set()
     def copy_attr(n):
         if n in dir(k):
             setattr(k.SubPanel, n, getattr(k, n))
@@ -118,13 +117,23 @@ def register_root_panel(k):
 
     return register_class(k)
 
+def register_sub_panel(k):
+    k.Parent.sub_panels.add(k)
+    return register_class(k)
+
 class RootPanel(ObjectPanel):
     prop_class = None
     prop_name = 'tungsten'
 
     @classmethod
+    def get_object_type(cls, obj):
+        w = getattr(obj, cls.prop_name)
+        if w:
+            return getattr(w, 'type', None)
+
+    @classmethod
     def get_subpanel_data(cls, scene, obj):
-        for k in cls.SubPanel.__subclasses__():
+        for k in cls.sub_panels:
             if k.poll_for_object(obj):
                 yield k.to_scene_data(scene, obj)
     

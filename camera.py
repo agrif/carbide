@@ -78,7 +78,7 @@ class W_PT_camera(properties_data_camera.CameraButtonsPanel, base.RootPanel):
         row.prop(cam, 'clip_start', text='')
         row.prop(cam, 'clip_end', text='')
 
-@base.register_class
+@base.register_sub_panel
 class W_PT_thinlens(W_PT_camera.SubPanel):
     bl_label = "Thin Lens"
     w_type = 'thinlens'

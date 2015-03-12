@@ -161,7 +161,7 @@ class W_PT_texture(properties_texture.TextureButtonsPanel, base.RootPanel):
             w = tex.tungsten
             lay.prop(w, 'type')
 
-@base.register_class
+@base.register_sub_panel
 class W_PT_image(W_PT_texture.SubPanel):
     bl_label = 'Image'
     w_type = 'image'
@@ -176,7 +176,7 @@ class W_PT_image(W_PT_texture.SubPanel):
 
         layout.template_image(tex, 'image', tex.image_user)
 
-@base.register_class
+@base.register_sub_panel
 class W_PT_checker(W_PT_texture.SubPanel):
     bl_label = 'Checker'
     w_type = 'checker'
@@ -239,7 +239,7 @@ class W_PT_checker(W_PT_texture.SubPanel):
         sub.prop(w, 'checker_resu')
         sub.prop(w, 'checker_resv')
 
-@base.register_class
+@base.register_sub_panel
 class W_PT_blade(W_PT_texture.SubPanel):
     bl_label = 'Blade'
     w_type = 'blade'

@@ -15,6 +15,7 @@ from .material import W_PT_material
 from .camera import W_PT_camera
 from .world import W_PT_world
 from .mesh import write_object_mesh
+from .lamp import W_PT_lamp
 
 base.compatify_all(properties_scene, 'SCENE_PT')
 
@@ -299,25 +300,32 @@ class TungstenScene:
         return outname
 
     def add_object(self, scene, o):
-        if not o.type in {'MESH', 'CURVE', 'SURFACE', 'META', 'FONT'}:
-            # no geometry
-            return
-        
         dat = {
             'name': o.name,
-            'type': 'mesh',
-            'smooth': True,
-            'file': self.add_mesh(scene, o),
         }
 
-        dat['transform'] = []
-        for v in o.matrix_world:
-            dat['transform'] += list(v)
-
-        if len(o.material_slots) > 0 and o.material_slots[0].material: # FIXME matid
-            obj = self.add_material(o.material_slots[0].material)
-            dat.update(obj)
+        if o.type in {'LAMP'}:
+            dat.update(W_PT_lamp.to_scene_data(scene, o.data))
+        elif not o.type in {'MESH', 'CURVE', 'SURFACE', 'META', 'FONT'}:
+            # no geometry
+            return
         else:
-            dat['bsdf'] = self.default_mat
+            # mesh!
+            dat['type'] = 'mesh'
+            dat['smooth'] = True
+            dat['file'] = self.add_mesh(scene, o)
+
+            if len(o.material_slots) > 0 and o.material_slots[0].material: # FIXME matid
+                obj = self.add_material(o.material_slots[0].material)
+                dat.update(obj)
+            else:
+                dat['bsdf'] = self.default_mat
+
+        # handle transforms
+        transform = dat.get('transform', Matrix())
+        transform = o.matrix_world * transform
+        dat['transform'] = []
+        for v in transform:
+            dat['transform'] += list(v)
 
         self.scene['primitives'].append(dat)
