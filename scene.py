@@ -141,6 +141,7 @@ class TungstenScene:
         }
         self.mats = {}
         self.images = {}
+        self.meshes = {}
         self.scenefile = self.path('scene.json')
 
         self.default_mat = '__default_mat'
@@ -315,18 +316,24 @@ class TungstenScene:
         self.mats[m.name] = obj
         return obj
 
-    def add_mesh(self, scene, o, name=None):
-        if name is None:
-            name = o.name
-        
-        outname = name + '.wo3'
+    def add_mesh(self, scene, o):
+        if o.type == 'MESH' and not o.is_modified(scene, 'RENDER'):
+            # unmodified meshes get export directly, as a m_file
+            outname = 'm_' + o.data.name + '.wo3'
+        else:
+            # modified meshes and other geometry get a o_file
+            outname = 'o_' + o.name + '.wo3'
+
+        if outname in self.meshes:
+            return self.meshes[outname]
         fulloutname = self.path(outname)
 
         start = time.time()
         verts, tris = write_object_mesh(scene, o, fulloutname)
         end = time.time()
         print('wrote', outname, 'in', end - start, 's -', verts, 'verts,', tris, 'tris')
-        
+
+        self.meshes[outname] = outname
         return outname
 
     def add_object(self, scene, o):
