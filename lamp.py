@@ -43,7 +43,7 @@ class W_PT_lamp(properties_data_lamp.DataButtonsPanel, base.RootPanel):
             subtype='COLOR',
             min=0.0,
             soft_max=1.0,
-            default=(10, 10, 10),
+            default=(100000, 100000, 100000),
         ),
 
         # used in a few specialties

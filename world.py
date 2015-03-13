@@ -20,7 +20,7 @@ class W_PT_world(properties_world.WorldButtonsPanel, base.RootPanel):
         'emission': ColorTextureProperty(
             name='Emission',
             description='Emission',
-            default=(0.0, 0.0, 0.0),
+            default=(0.1, 0.1, 0.2),
         ),
     }
 
