@@ -202,8 +202,10 @@ class TungstenScene:
         if scene.world:
             self.add_world(scene.world)
         self.add_camera(scene, scene.camera)
+
         for o in scene.objects.values():
-            self.add_object(scene, o)
+            if any(a and b for a, b in zip(scene.layers, o.layers)):
+                self.add_object(scene, o)
 
         end = time.time()
         print('wrote scene in', end - start, 's')
