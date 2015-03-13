@@ -63,8 +63,8 @@ class W_PT_camera(properties_data_camera.CameraButtonsPanel, base.RootPanel):
         layout = self.layout
         w = cam.tungsten
 
-        layout.prop(w, 'type')
-        layout.prop(w, 'tonemap')
+        layout.prop(w, 'type', expand=True)
+        layout.prop(w, 'tonemap', expand=True)
         row = layout.row()
         if cam.lens_unit != 'FOV':
             row.prop(cam, 'lens')

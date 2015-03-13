@@ -68,7 +68,7 @@ class W_PT_lamp(properties_data_lamp.DataButtonsPanel, base.RootPanel):
         layout = self.layout
         w = lamp.tungsten
 
-        layout.prop(lamp, 'type')
+        layout.prop(lamp, 'type', expand=True)
         layout.prop(w, 'emission')
 
 @base.register_sub_panel
@@ -266,7 +266,7 @@ class W_PT_lamp_area(W_PT_lamp.SubPanel):
         layout = self.layout
         w = lamp.tungsten
 
-        layout.prop(w, 'area_type')
+        layout.prop(w, 'area_type', expand=True)
 
         if w.area_type == 'SQUARE':
             layout.prop(w, 'diameter', text='Size')

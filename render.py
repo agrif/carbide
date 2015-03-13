@@ -95,7 +95,7 @@ class W_PT_integrator(properties_render.RenderButtonsPanel, base.RootPanel):
             items=(
                 ('path_trace', 'Path Trace', ''),
                 ('photon_map', 'Photon Map', ''),
-                ('progressive_photon_map', 'Progressive Photon Map', ''),
+                ('progressive_photon_map', 'PPPM', ''),
             ),
             default='path_trace',
         ),
@@ -161,7 +161,7 @@ class W_PT_integrator(properties_render.RenderButtonsPanel, base.RootPanel):
         layout = self.layout
         w = obj.tungsten_int
 
-        layout.prop(w, 'type', text='Type')
+        layout.prop(w, 'type', text='Type', expand=True)
 
         layout.prop(w, 'light_sampling')
         layout.prop(w, 'volume_light_sampling')
