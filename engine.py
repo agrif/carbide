@@ -9,11 +9,11 @@ class TungstenRenderEngine(bpy.types.RenderEngine):
     bl_idname = 'TUNGSTEN'
     bl_label = 'Tungsten'
 
-    #bl_use_preview = True
+    bl_use_preview = True
 
     def update(self, data, blscene):
         self.scene = scene.TungstenScene()
-        self.scene.add_all(blscene)
+        self.scene.add_all(blscene, preview=self.is_preview)
         self.scene.save()
 
         self.threads = blscene.render.threads
@@ -40,6 +40,10 @@ class TungstenRenderEngine(bpy.types.RenderEngine):
         last_spp = 0
         while t.running:
             time.sleep(0.1)
+            # do not do status if it's a preview
+            if self.is_preview:
+                continue
+            
             try:
                 s = t.get_status()
             except OSError:

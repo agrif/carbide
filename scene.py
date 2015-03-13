@@ -17,6 +17,7 @@ from .camera import W_PT_camera
 from .world import W_PT_world
 from .mesh import write_object_mesh
 from .lamp import W_PT_lamp
+from .texture import W_PT_texture
 
 base.compatify_all(properties_scene, 'SCENE_PT')
 
@@ -191,7 +192,7 @@ class TungstenScene:
         with open(self.scenefile, 'w') as f:
             json.dump(self.scene, f, indent=4)
 
-    def add_all(self, scene):
+    def add_all(self, scene, preview=False):
         start = time.time()
         
         d = W_PT_renderer.to_scene_data(self, scene)
@@ -208,8 +209,52 @@ class TungstenScene:
             if any(a and b for a, b in zip(scene.layers, o.layers)):
                 self.add_object(scene, o)
 
+        if preview:
+            self.munge_preview(scene)
+
         end = time.time()
         print('wrote scene in', end - start, 's')
+
+    def munge_preview(self, scene):
+        def lookup(ln, n, default=None):
+            l = self.scene[ln]
+            r = [x for x in l if x.get('name') == n]
+            if r:
+                return r[0]
+            return default
+
+        self.scene['renderer']['spp'] = 48
+        self.scene['integrator']['enable_two_sided_shading'] = False
+        
+        to_remove = []
+        for p in self.scene['primitives']:
+            name = p.get('name', '')
+            if p['type'] == 'infinite_sphere':
+                to_remove.append(p)
+            if name.startswith('Lamp') and p['type'] == 'sphere':
+                p['emission'] = 100000
+            if name.startswith('Lamp') and p['type'] == 'infinite_sphere_cap':
+                p['emission'] = 150
+            if name.startswith('Lamp') and p['type'] == 'disk':
+                p['emission'] = 60000
+            if name.startswith('checkers'):
+                try:
+                    n = int(name.split('.')[1])
+                except:
+                    n = 0
+                if n in [7, 4]:
+                    to_remove.append(p)
+                else:
+                    b = lookup('bsdfs', p['bsdf'])
+                    b['albedo'] = {'type': 'checker'}
+            if name == 'texture':
+                o = scene.objects['texture']
+                t = o.material_slots[0].material.texture_slots[0].texture
+                b = lookup('bsdfs', p['bsdf'])
+                b['albedo'] = W_PT_texture.to_scene_data(self, t)
+
+        for p in to_remove:
+            self.scene['primitives'].remove(p)
 
     def add_world(self, world):
         p = W_PT_world.to_scene_data(self, world)
