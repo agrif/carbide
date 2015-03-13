@@ -8,6 +8,10 @@ from . import base
 base.compatify_class(properties_data_lamp.DATA_PT_context_lamp)
 base.compatify_class(properties_data_lamp.DATA_PT_custom_props_lamp)
 
+# used to flip -y to +y (and also -x to +x to preserve det == 1)
+mf = Matrix.Scale(-1, 4, Vector((0, 1, 0)))
+mf *= Matrix.Scale(-1, 4, Vector((1, 0, 0)))
+
 def get_lamp_for_w(w):
     for lamp in bpy.data.lamps:
         if lamp.tungsten == w:
@@ -139,7 +143,7 @@ class W_PT_lamp_spot(W_PT_lamp.SubPanel):
         w = lamp.tungsten
         return {
             'type': 'disk',
-            'transform': Matrix.Scale(w.diameter / 2, 4),
+            'transform': Matrix.Scale(w.diameter / 2, 4) * mf,
             # blender uses a diameter, tungsten a radius
             'cone_angle': math.degrees(lamp.spot_size) / 2,
         }
@@ -241,24 +245,22 @@ class W_PT_lamp_area(W_PT_lamp.SubPanel):
     @classmethod
     def to_scene_data(self, scene, lamp):
         w = lamp.tungsten
-        mf = Matrix.Scale(-1, 4, Vector((0, 1, 0)))
-        mf *= Matrix.Scale(-1, 4, Vector((1, 0, 0)))
         if w.area_type == 'SQUARE':
             return {
                 'type': 'quad',
-                'transform': Matrix.Scale(w.diameter, 4) * mf,
+                'transform': Matrix.Scale(w.diameter, 4),
             }
         elif w.area_type == 'RECTANGLE':
             mx = Matrix.Scale(w.diameter, 4, Vector((1, 0, 0)))
             my = Matrix.Scale(lamp.size_y, 4, Vector((0, 0, 1)))
             return {
                 'type': 'quad',
-                'transform': mx * my * mf,
+                'transform': mx * my,
             }
         elif w.area_type == 'CIRCLE':
             return {
                 'type': 'disk',
-                'transform': Matrix.Scale(w.diameter / 2, 4),
+                'transform': Matrix.Scale(w.diameter / 2, 4) * mf,
                 'cone_angle': 90,
             }
 
