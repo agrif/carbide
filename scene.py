@@ -335,7 +335,9 @@ class TungstenScene:
         matrix_world = o.matrix_world
         if o.type in {'LAMP'}:
             dat.update(W_PT_lamp.to_scene_data(scene, o.data))
-            matrix_world = orientify(reset_scale(matrix_world))
+            # we used to reset_scale here, but area lights *need* scale
+            #matrix_world = orientify(reset_scale(matrix_world))
+            matrix_world = orientify(matrix_world)
         elif not o.type in {'MESH', 'CURVE', 'SURFACE', 'META', 'FONT'}:
             # no geometry
             return
