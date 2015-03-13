@@ -6,6 +6,7 @@ from bl_ui import properties_data_lamp
 from . import base
 
 base.compatify_class(properties_data_lamp.DATA_PT_context_lamp)
+base.compatify_class(properties_data_lamp.DATA_PT_preview)
 base.compatify_class(properties_data_lamp.DATA_PT_custom_props_lamp)
 
 # used to flip -y to +y (and also -x to +x to preserve det == 1)

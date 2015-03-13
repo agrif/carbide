@@ -333,7 +333,7 @@ class TungstenScene:
         }
 
         matrix_world = o.matrix_world
-        if o.type in {'LAMP'}:
+        if o.type in {'LAMP'} and o.data:
             dat.update(W_PT_lamp.to_scene_data(scene, o.data))
             # we used to reset_scale here, but area lights *need* scale
             #matrix_world = orientify(reset_scale(matrix_world))

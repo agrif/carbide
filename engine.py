@@ -9,7 +9,6 @@ class TungstenRenderEngine(bpy.types.RenderEngine):
     bl_idname = 'TUNGSTEN'
     bl_label = 'Tungsten'
 
-    # FIXME previews
     #bl_use_preview = True
 
     def update(self, data, blscene):

@@ -4,6 +4,8 @@ from bl_ui import properties_texture
 
 from . import props, base, node
 
+base.compatify_class(properties_texture.TEXTURE_PT_preview)
+
 class TextureProperty(props.FakeIDProperty):
     ID_NAME = 'texture'
     HUMAN_NAME = 'Texture'
