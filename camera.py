@@ -9,20 +9,6 @@ base.compatify_class(properties_data_camera.DATA_PT_context_camera)
 base.compatify_class(properties_data_camera.DATA_PT_camera_display)
 base.compatify_class(properties_data_camera.DATA_PT_custom_props_camera)
 
-def update_with_default_width(self, context):
-    table = {
-        'dirac': 0,
-        'box': 1,
-        'tent': 1,
-        'mitchell_netravali': 2,
-        'catmull_rom': 2,
-        'lanczos': 3,
-        'gaussian': 3,
-        'airy': 5,
-    }
-
-    self.rf_width = table.get(self.reconstruction_filter, 1.0)
-
 @base.register_root_panel
 class W_PT_camera(properties_data_camera.CameraButtonsPanel, base.RootPanel):
     bl_label = "Tungsten Camera"
@@ -66,24 +52,8 @@ class W_PT_camera(properties_data_camera.CameraButtonsPanel, base.RootPanel):
                 ('mitchell_netravali', 'Mitchell-Netravali', ''),
                 ('catmull_rom', 'Catmull-Rom', ''),
                 ('lanczos', 'Lanczos', ''),
-                ('airy', 'Airy', ''),
             ],
-            default='airy',
-            update=update_with_default_width,
-        ),
-
-        'rf_width': bpy.props.FloatProperty(
-            name='Width',
-            description='Reconstruction Filter Width',
-            min=0,
-            default=5,
-        ),
-
-        'rf_alpha': bpy.props.FloatProperty(
-            name='Alpha',
-            description='Reconstruction Filter Alpha',
-            min=0,
-            default=1.5,
+            default='tent',
         ),
     }
 
@@ -91,11 +61,7 @@ class W_PT_camera(properties_data_camera.CameraButtonsPanel, base.RootPanel):
     def to_scene_data(self, scene, obj):
         cam = obj.data
         w = cam.tungsten
-        rf = {
-            'type': w.reconstruction_filter,
-            'width': w.rf_width,
-            'alpha': w.rf_alpha,
-        }
+        rf = w.reconstruction_filter
         d = {
             'type': w.type,
             'tonemap': w.tonemap,
@@ -125,10 +91,6 @@ class W_PT_camera(properties_data_camera.CameraButtonsPanel, base.RootPanel):
 
         row = layout.row(align=True)
         row.prop(w, 'reconstruction_filter')
-        if w.reconstruction_filter in {'lanczos', 'airy', 'gaussian'}:
-            row.prop(w, 'rf_width')
-        if w.reconstruction_filter in {'gaussian'}:
-            row.prop(w, 'rf_alpha')
 
         # Tungsten doesn't use these, but blender's GL view does
         row = layout.row(align=True)

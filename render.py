@@ -93,11 +93,16 @@ class W_PT_integrator(properties_render.RenderButtonsPanel, base.RootPanel):
             name="Integrator Type",
             description="Integrator Type",
             items=(
-                ('path_trace', 'Path Trace', ''),
+                ('path_tracer', 'Path Tracer', ''),
+                ('light_tracer', 'Light Tracer', ''),
                 ('photon_map', 'Photon Map', ''),
                 ('progressive_photon_map', 'PPPM', ''),
+                ('bidirectional_path_tracer', 'Bidir. Path Tracer', ''),
+                ('kelemen_mlt', 'Kelemen MLT', ''),
+                ('multiplexed_mlt', 'Multiplexed MLT', ''),
+                ('reversible_jump_mlt', 'Reversible Jump MLT', ''),
             ),
-            default='path_trace',
+            default='path_tracer',
         ),
         
         'light_sampling': bpy.props.BoolProperty(
@@ -161,7 +166,7 @@ class W_PT_integrator(properties_render.RenderButtonsPanel, base.RootPanel):
         layout = self.layout
         w = obj.tungsten_int
 
-        layout.prop(w, 'type', text='Type', expand=True)
+        layout.prop(w, 'type', text='Type')
 
         layout.prop(w, 'light_sampling')
         layout.prop(w, 'volume_light_sampling')

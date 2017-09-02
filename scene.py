@@ -137,7 +137,7 @@ class TungstenScene:
                 'output_file': 'scene.png',
                 'overwrite_output_files': True,
                 'enable_resume_render': False,
-                'checkpoint_interval': 0,
+                'checkpoint_interval': "0",
             },
         }
         self.mats = {}
