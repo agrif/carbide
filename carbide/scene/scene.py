@@ -72,11 +72,15 @@ class Scene(Data):
             self.dump(self, f)
 
     def render(self, output, update=None, **kwargs):
+        # FIXME if this scene was loaded from a file,
+        # this should probably the directory it is in
+        input_directory = os.getcwd()
         with tempfile.TemporaryDirectory(prefix='carbide.') as tmp:
             scene_name = os.path.join(tmp, 'scene.json')
             self.save(scene_name)
 
-            renderer = Tungsten(scene_name, output_directory=tmp, **kwargs)
+            renderer = Tungsten(scene_name, output_directory=tmp,
+                                input_directory=input_directory, **kwargs)
             old_status = None
             try:
                 while renderer.poll():
