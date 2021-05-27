@@ -7,6 +7,7 @@ import os.path
 import requests
 import socket
 import subprocess
+import time
 
 __all__ = ['RenderProduct', 'RenderState', 'RenderStatus',
            'TungstenFinished', 'Tungsten']
@@ -138,6 +139,10 @@ class RenderStatus:
 
 
 class Tungsten:
+    # n.b. timeout for requests to Tungsten, not for the whole render
+    # (this is not timeout in __init__)
+    timeout = 0.5
+
     def __init__(self, *scenes, command=None, port=None, log_file=None,
                  threads=None, restart=False, checkpoint=None,
                  input_directory=None, output_directory=None, spp=None,
@@ -202,6 +207,17 @@ class Tungsten:
         self.port = port
         self.process = subprocess.Popen(args)
 
+        # wait until we can access the server
+        start = time.time()
+        while self.poll() and time.time() < start + self.timeout:
+            try:
+                self.get_status()
+                return
+            except RuntimeError:
+                pass
+        # this will either work (hooray!) or throw the correct error
+        self.get_status()
+
     def poll(self):
         return self.process.poll() is None
 
@@ -220,10 +236,9 @@ class Tungsten:
         return self.process.returncode
 
     def get(self, path, binary=False):
-        timeout = 0.5
         try:
             r = requests.get('http://localhost:{}/{}'.format(self.port, path),
-                             timeout=timeout)
+                             timeout=self.timeout)
             r.raise_for_status()
             if binary:
                 return r.content
@@ -231,7 +246,7 @@ class Tungsten:
                 return r.text
         except requests.RequestException as e:
             try:
-                self.finish(timeout=timeout)
+                self.finish(timeout=self.timeout)
                 raise TungstenFinished('tungsten_server has finished') \
                     from None
             except subprocess.TimeoutExpired:
