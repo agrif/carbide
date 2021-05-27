@@ -1,9 +1,16 @@
+import abc
 import collections
 
 from carbide.scene.json import NamedSerializable, Serializable
 
 
-class NamedCollection(Serializable, collections.UserList):
+class ABCMetaGetItem(abc.ABCMeta):
+    def __getitem__(self, key):
+        return self.__class_getitem__(key)
+
+
+class NamedCollection(Serializable, collections.UserList,
+                      metaclass=ABCMetaGetItem):
     T = object
 
     @classmethod
