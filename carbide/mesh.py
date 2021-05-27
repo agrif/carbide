@@ -2,7 +2,6 @@ import dataclasses
 import struct
 
 import numpy
-import numpy.typing
 
 
 Vertex = numpy.dtype([
