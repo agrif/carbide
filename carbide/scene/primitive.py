@@ -47,10 +47,10 @@ class Disk(Primitive):
 
 
 class CurveMode(Enum):
-    CYLINDER = object()
-    HALF_CYLINDER = object()
-    BCSDF_CYLINDER = object()
-    RIBBON = object()
+    CYLINDER = Enum.auto()
+    HALF_CYLINDER = Enum.auto()
+    BCSDF_CYLINDER = Enum.auto()
+    RIBBON = Enum.auto()
 
 
 class Curves(Primitive):

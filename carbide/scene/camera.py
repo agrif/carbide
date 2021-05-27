@@ -5,11 +5,11 @@ from carbide.scene.transform import Transform, Transformable
 
 
 class Tonemap(Enum):
-    LINEAR = object()
-    GAMMA = object()
-    REINHARD = object()
-    FILMIC = object()
-    PBRT = object()
+    LINEAR = Enum.auto()
+    GAMMA = Enum.auto()
+    REINHARD = Enum.auto()
+    FILMIC = Enum.auto()
+    PBRT = Enum.auto()
 
 
 class Resolution(Tuple):
@@ -18,13 +18,13 @@ class Resolution(Tuple):
 
 
 class ReconstructionFilter(Enum):
-    DIRAC = object()
-    BOX = object()
-    TENT = object()
-    GAUSSIAN = object()
-    MITCHELL_NETRAVALI = object()
-    CATMULL_ROM = object()
-    LANCZOS = object()
+    DIRAC = Enum.auto()
+    BOX = Enum.auto()
+    TENT = Enum.auto()
+    GAUSSIAN = Enum.auto()
+    MITCHELL_NETRAVALI = Enum.auto()
+    CATMULL_ROM = Enum.auto()
+    LANCZOS = Enum.auto()
 
 
 class Camera(TypedSerializable, Transformable, Data):
@@ -55,10 +55,10 @@ class EquirectangularCamera(Camera):
 
 
 class ProjectionMode(Enum):
-    HORIZONTAL_CROSS = object()
-    VERTICAL_CROSS = object()
-    ROW = object()
-    COLUMN = object()
+    HORIZONTAL_CROSS = Enum.auto()
+    VERTICAL_CROSS = Enum.auto()
+    ROW = Enum.auto()
+    COLUMN = Enum.auto()
 
 
 class CubemapCamera(Camera):

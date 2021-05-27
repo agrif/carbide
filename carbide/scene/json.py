@@ -87,17 +87,24 @@ class TypedSerializable(Serializable):
 
 
 class Enum(Serializable, enum.Enum):
+    @staticmethod
+    def auto():
+        return enum.auto()
+
+    @staticmethod
+    def _generate_next_value_(name, start, count, last_values):
+        return name.lower()
+
     @classmethod
     def structure(cls, scene, data):
-        if isinstance(data, str):
-            data = data.upper()
-        if data not in cls.__members__:
-            raise ValueError('bad value `{!r}` for {}'
-                             .format(data, cls.__name__))
-        return cls.__members__[data]
+        try:
+            return cls(data)
+        except ValueError:
+            pass
+        raise ValueError('bad value `{!r}` for {}'.format(data, cls.__name__))
 
     def destructure(self, scene):
-        return self.name.lower()
+        return self.value
 
     def __repr__(self):
         return '{}.{}'.format(self.__class__.__name__, self.name)

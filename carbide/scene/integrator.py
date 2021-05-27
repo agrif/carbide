@@ -23,10 +23,10 @@ class LightTracer(Integrator):
 
 
 class VolumePhotonType(Enum):
-    POINTS = object()
-    BEAMS = object()
-    PLANES = object()
-    PLANES_1D = object()
+    POINTS = Enum.auto()
+    BEAMS = Enum.auto()
+    PLANES = Enum.auto()
+    PLANES_1D = Enum.auto()
 
 
 class PhotonMap(Integrator):
