@@ -117,8 +117,8 @@ class DataMeta(type):
 
 
 class DataBase(metaclass=DataMeta):
-    @classmethod
-    def field(cls, **kwargs):
+    @staticmethod
+    def field(**kwargs):
         return dataclasses.field(**kwargs)
 
     def modify(self, *args, **kwargs):
@@ -138,6 +138,10 @@ class DataBase(metaclass=DataMeta):
 
 
 class Data(Serializable, DataBase):
+    @staticmethod
+    def field(**kwargs):
+        return DataBase.field(**kwargs)
+
     @classmethod
     def structure(cls, scene, data):
         if not isinstance(data, dict):
@@ -172,6 +176,10 @@ class Data(Serializable, DataBase):
 
 
 class Tuple(Serializable, DataBase):
+    @staticmethod
+    def field(**kwargs):
+        return DataBase.field(**kwargs)
+
     @classmethod
     def structure(cls, scene, data):
         if not isinstance(data, list):
@@ -212,4 +220,3 @@ def destructure(scene, value):
         return value.destructure(scene)
     else:
         return value
-
