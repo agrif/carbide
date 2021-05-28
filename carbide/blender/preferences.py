@@ -1,11 +1,13 @@
 import bpy
-from .base import register_class
 
-@register_class
+from carbide.blender.register import add_class
+
+@add_class
 class TungstenPreferences(bpy.types.AddonPreferences):
-    bl_idname = __package__
+    # careful -- this needs to match the root package name
+    bl_idname = __package__.split('.')[0]
 
-    tungsten_server_path = bpy.props.StringProperty(
+    tungsten_server_path: bpy.props.StringProperty(
         name="Tungsten Server Path",
         description="Tungsten Server Path",
         subtype='FILE_PATH',
