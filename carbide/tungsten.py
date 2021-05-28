@@ -227,6 +227,10 @@ class Tungsten:
             raise subprocess.CalledProcessError(code, self.process.args)
         return self.products
 
+    def cancel(self, timeout=None):
+        self.process.terminate()
+        return self.finish(timeout=timeout)
+
     @property
     def pid(self):
         return self.process.pid

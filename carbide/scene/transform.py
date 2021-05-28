@@ -6,18 +6,23 @@ from carbide.scene.json import Serializable
 class Transformable:
     def apply_transform(self, m):
         self.transform.apply_transform(m)
+        return self
 
     def translate(self, x, y, z):
         self.apply_transform(Transform.translation(x, y, z))
+        return self
 
     def scale(self, size):
         self.apply_transform(Transform.scaling(size))
+        return self
 
     def scale_nonuniform(self, x, y, z):
         self.apply_transform(Transform.scaling_nonuniform(x, y, z))
+        return self
 
     def rotate(self, axis, angle):
         self.apply_transform(Transform.rotation(axis, angle))
+        return self
 
 
 class Transform(Serializable, Transformable):

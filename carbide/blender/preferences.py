@@ -18,3 +18,7 @@ class TungstenPreferences(bpy.types.AddonPreferences):
         lay = self.layout
 
         lay.prop(self, 'tungsten_server_path')
+
+def get():
+    return bpy.context.preferences.addons[__package__.split('.')[0]] \
+                                  .preferences

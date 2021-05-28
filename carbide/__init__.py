@@ -23,7 +23,7 @@ bl_info = {
     'description': 'Tungsten renderer integration',
     'category': 'Render',
     'blender': (2, 80, 0),
-    'location': 'Info Header (engine dropdown)',
+    'location': 'Properties Panel, Render Tab, Engine Dropdown',
 }
 
 # ok, now we can import things like normal
